@@ -94,8 +94,14 @@ export default function HotelSearchForm({
       const outDate = url.searchParams.get('checkout') || url.searchParams.get('checkOut');
       const isoIn = formatToIso(inDate);
       const isoOut = formatToIso(outDate);
-      if (isoIn) updates.checkIn = isoIn;
-      if (isoOut) updates.checkOut = isoOut;
+      const today = new Date().toISOString().split('T')[0];
+      if (isoIn) {
+        updates.checkIn = isoIn >= today ? isoIn : today;
+      }
+      if (isoOut) {
+        const minOut = updates.checkIn ? addDaysToDate(updates.checkIn, 1) : addDaysToDate(today, 1);
+        updates.checkOut = (isoOut > (updates.checkIn || today)) ? isoOut : minOut;
+      }
 
       const roomsParam = url.searchParams.get('rooms');
       if (roomsParam) {
