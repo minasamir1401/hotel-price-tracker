@@ -99,7 +99,7 @@ export default function App() {
     setFormData((prev) => ({ ...prev, ...params }));
     setSearchState('loading');
     setErrorMessage('');
-    setProgressInfo(null);
+    setProgressInfo({ completed: 0, total: calculatedNights || 1, percent: 0, currentDay: checkIn });
     setDailyPricesData(null);
     setResults([]);
     setSummary(null);
@@ -133,7 +133,9 @@ export default function App() {
       }
 
       // Query the live source for comparison
-      const response = await startHotelPriceSearch(params);
+      const response = await startHotelPriceSearch(params, (prog) => {
+        setProgressInfo(prog);
+      });
 
       if (response.success) {
         if (!response.data || response.data.length === 0) {

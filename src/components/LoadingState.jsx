@@ -44,22 +44,32 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
 
       {/* Real-time Streaming Progress Bar */}
       {progress && progress.total > 0 && (
-        <div className="mb-6 p-4 bg-blue-50/80 rounded-2xl border border-blue-200/80 text-right">
-          <div className="flex items-center justify-between text-xs font-bold text-blue-900 mb-2">
-            <span>تقدم السحب المباشر: {progress.completed} من {progress.total} ليلة</span>
-            <span className="font-mono text-sm">{progress.percent || Math.round((progress.completed / progress.total) * 100)}%</span>
+        <div className="mb-6 p-4 sm:p-5 bg-gradient-to-br from-blue-50/90 to-indigo-50/80 rounded-2xl border border-blue-200/90 text-right shadow-sm">
+          <div className="flex items-center justify-between gap-3 text-sm font-bold text-blue-950 mb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-blue-600 text-white font-mono text-xs">
+                {progress.completed} / {progress.total}
+              </span>
+              <span>تم استخراج {progress.completed} من {progress.total} يوم (ليلة)</span>
+            </div>
+            <span className="font-mono text-base font-extrabold text-blue-700">
+              {progress.percent || Math.round((progress.completed / progress.total) * 100)}%
+            </span>
           </div>
-          <div className="w-full h-3 bg-blue-100 rounded-full overflow-hidden p-0.5 border border-blue-200">
+
+          <div className="w-full h-3.5 bg-blue-100/90 rounded-full overflow-hidden p-0.5 border border-blue-200 shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500 ease-out"
+              className="h-full bg-gradient-to-r from-blue-500 via-indigo-600 to-blue-700 rounded-full transition-all duration-500 ease-out shadow-xs"
               style={{ width: `${Math.max(4, Math.min(100, progress.percent || Math.round((progress.completed / progress.total) * 100)))}%` }}
             />
           </div>
-          {progress.currentDay && (
-            <p className="mt-2 text-xs text-blue-700 font-medium">
-              جاري فحص وتأكيد ليلة: <span className="font-mono font-bold text-slate-900">{progress.currentDay}</span>
-            </p>
-          )}
+
+          <div className="flex items-center justify-between text-xs text-slate-600 mt-2.5 font-medium">
+            {progress.currentDay ? (
+              <span>جاري استخراج ليلة: <strong className="font-mono text-slate-900">{progress.currentDay}</strong></span>
+            ) : <span>جاري استخراج البيانات...</span>}
+            <span>المتبقي: {Math.max(0, progress.total - progress.completed)} يوم</span>
+          </div>
         </div>
       )}
 
