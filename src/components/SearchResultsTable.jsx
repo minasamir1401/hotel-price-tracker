@@ -20,7 +20,7 @@ export default function LiveSearchResultsTable({results,summary,searchParams,onE
       </div>
       <select id="selected-room" value={selectedRoomId || results[0].id} onChange={e=>onRoomSelect?.(e.target.value)} className="w-full border border-slate-300 rounded-xl p-3 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 outline-none">
         {results.map(r=>{
-          const directCount = r.breakfastDirectAvailableNights ?? r.roomOnlyDirectAvailableNights ?? r.breakfastAvailableNights ?? 0;
+          const directCount = Math.max(0,...['roomOnly','breakfast','halfBoard'].flatMap(plan=>[r[`${plan}DirectAvailableNights`] ?? r[`${plan}AvailableNights`] ?? 0,r[`${plan}FlexibleDirectAvailableNights`] ?? r[`${plan}FlexibleAvailableNights`] ?? 0]));
           const isFull = directCount === r.nights;
           return (
             <option key={r.id} value={r.id}>

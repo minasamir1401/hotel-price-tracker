@@ -26,6 +26,20 @@ test('Separate tax exports preserve each room, date and offer and never infer un
   assert.ok(selected.at(-1).includes(286));assert.ok(selected.at(-1).includes(50.06));
 });
 
+test('Excel retains partner and direct offers of the same twin room with separate conditions',()=>{
+  const room={id:'direct',roomName:'Twin Room',source:'Booking',sourceArabic:'بوكينج',nights:1,rooms:1,adults:2,roomOnlyAvailableNights:1,roomOnlyTotalPrice:206.28,
+    dailyRates:[{date:'2026-10-11',availability:'available',roomOnlyPrice:206.28,offers:{roomOnly:{price:206.28}}}]};
+  const partner={...room,id:'partner',partnerOffer:true,roomName:'Twin Room — عرض شريك',roomOnlyTotalPrice:164.73,
+    dailyRates:[{date:'2026-10-11',availability:'available',roomOnlyPrice:164.73,offers:{roomOnly:{price:164.73,partnerOffer:true,partnerConditions:['No modifications','Cannot combine with other offers']}}}]};
+  const summary=summaryForRoom({rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-11'}]},room);
+  const workbook=buildExportWorkbook({},[room,partner],summary);
+  const rows=XLSX.utils.sheet_to_json(workbook.Sheets['تفاصيل الغرف والأيام'],{header:1});
+  const directRow=rows.find(r=>r[1]==='Twin Room'),partnerRow=rows.find(r=>r[1]===partner.roomName);
+  assert.equal(directRow[12],206.28);assert.equal(partnerRow[12],164.73);
+  assert.equal(partnerRow[22],'عرض شريك');assert.match(partnerRow[23],/Cannot combine/);
+  assert.equal(directRow[22],'عرض الفندق');
+});
+
 test('Retrying one verified night updates only that date and recalculates exact totals and Excel',()=>{
   const room={id:'almosafer-1287944-0',source:'Almosafer',roomIdentity:'triple',roomName:'ثلاثية',hotelName:'كينجزجيت',
     checkIn:'2026-10-19',checkOut:'2026-10-21',currency:'SAR',adults:3,children:0,rooms:1,nights:2,
