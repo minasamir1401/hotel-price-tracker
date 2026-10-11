@@ -4,8 +4,27 @@ import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
 import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
-import {summaryForRoom,replaceVerifiedNight} from '../src/services/rates.js';
+import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
+
+test('Separate tax exports preserve each room, date and offer and never infer unknown taxes',()=>{
+  const parts={currency:'SAR',priceBeforeTax:143,taxesAndFees:25.03,totalPrice:168.03,items:[{name:'VAT',amount:21.45},{name:'City tax',amount:3.58}]};
+  const offer={price:168.03,taxBreakdown:parts,cancellationPolicy:'إلغاء مجاني'};
+  assert.equal(priceParts(offer,168.03),parts);assert.equal(priceParts(offer,200),null);assert.equal(priceParts({price:168.03}),null);
+  const dailyRates=['2026-10-11','2026-10-12'].map(date=>({date,nextDate:'2026-10-13',dayOfWeek:'الأحد',availability:'available',roomOnlyPrice:168.03,offers:{roomOnly:offer}}));
+  const room={id:'king',source:'Booking',sourceArabic:'بوكينج',roomName:'King Room',roomSizeM2:20,beddingLabel:'1 king bed',rooms:1,adults:2,nights:2,roomOnlyAvailableNights:2,roomOnlyTotalPrice:336.06,roomOnlyPricePerNight:168.03,dailyRates};
+  const second={...room,id:'triple',roomName:'Triple Room',dailyRates:dailyRates.map(d=>({...d,offers:{roomOnly:{price:168.03}}}))};
+  const summary=summaryForRoom({adults:2,rooms:1,nights:2,dailyBreakdown:dailyRates.map(d=>({date:d.date}))},room);
+  assert.deepEqual(sumPriceParts(summary.dailyBreakdown,'roomOnly',2),{priceBeforeTax:572,taxesAndFees:100.12,totalPrice:672.12});
+  assert.equal(sumPriceParts(summaryForRoom(summary,second).dailyBreakdown,'roomOnly'),null);
+  const workbook=buildExportWorkbook({},[room,second],summary);
+  const rows=XLSX.utils.sheet_to_json(workbook.Sheets['تفاصيل الغرف والأيام'],{header:1});
+  const king=rows.filter(r=>r[1]==='King Room');assert.equal(king.length,2);
+  assert.deepEqual(king[0].slice(10,13),[143,25.03,168.03]);assert.equal(king[0][3],20);
+  const triple=rows.find(r=>r[1]==='Triple Room');assert.deepEqual(triple.slice(10,13),['غير متاح','غير متاح',168.03]);
+  const selected=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{header:1});
+  assert.ok(selected.at(-1).includes(286));assert.ok(selected.at(-1).includes(50.06));
+});
 
 test('Retrying one verified night updates only that date and recalculates exact totals and Excel',()=>{
   const room={id:'almosafer-1287944-0',source:'Almosafer',roomIdentity:'triple',roomName:'ثلاثية',hotelName:'كينجزجيت',

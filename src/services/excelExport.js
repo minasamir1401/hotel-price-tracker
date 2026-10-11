@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { rateFields, catalogFields } from './rates.js';
+import { rateFields, catalogFields, priceParts, sumPriceParts } from './rates.js';
 const value = n => n==null ? 'غير متاح' : n;
 export function getCleanHotelName(searchParams,summary,results) { return summary?.hotelName || results?.[0]?.hotelName || searchParams.hotelInput; }
 export function getCleanRoomName(searchParams,summary,results) { return summary?.almosaferRoom || results?.[0]?.roomName || ''; }
@@ -15,13 +15,21 @@ export function buildExportWorkbook(searchParams,results,summary,viewMode='all',
   const selectedRoom=results.find(r=>r.id===summary.activeRoomId) || results[0];
   const pairs=summary.dailyBreakdown || [];
   const fields=rateFields(summary,rateTier);
-  const dailyFields=fields.map(([field,label])=>[`almosafer${field[0].toUpperCase()+field.slice(1)}`,label]);
+  const dailyFields=fields.map(([field,label])=>[`almosafer${field[0].toUpperCase()+field.slice(1)}`,label,field]);
+  const taxHeaders=fields.flatMap(([,label])=>[`${label}: سعر الغرفة بدون الضرائب (ر.س)`,`${label}: الضرائب والرسوم (ر.س)`]);
+  const taxValues=parts=>[value(parts?.priceBeforeTax),value(parts?.taxesAndFees)];
   const meta=[[`أسعار حجوزات ليلة واحدة مستقلة — ${sourceName}`],['الفندق',getCleanHotelName(searchParams,summary,results),'الغرفة',getCleanRoomName(searchParams,summary,results)],['السراير حسب المصدر',summary.beddingLabel || 'لم يحدد المصدر','عدد السراير المطلوب',searchParams.bedCount || 'أي عدد','نوع السراير المطلوب',({any:'أي نوع',single:'سرير فردي',double:'سرير مزدوج',king:'سرير كينج',queen:'سرير كوين'})[searchParams.bedType || 'any']],['الوصول',summary.checkIn,'المغادرة',summary.checkOut,'البالغون لكل غرفة',summary.adults,'الغرف',summary.rooms],['إجمالي البالغين',summary.adults*summary.rooms,'الأطفال لكل غرفة',summary.children || 0],['العملة','SAR','وقت الاستعلام',summary.searchedAt],['ملاحظة','مجموع الليالي المستقلة قد يختلف عن سعر حجز إقامة متصلة. غير متاح لا يعني سعر صفر.'],...(summary.warnings || []).map(w=>['تنبيه',w]),[]];
-  const daily=[...meta,['اليوم','التاريخ',...dailyFields.map(f=>`${f[1]} (ر.س/غرفة/ليلة)`),'فرق الفطور للغرفة','فرق الفطور للفرد','حالة اليوم','رابط المصدر']];
-  pairs.forEach(d=>daily.push([d.dayOfWeek,d.date,...dailyFields.map(([key])=>d.almosaferAvailability==='error'?'تعذر التحقق':value(d[key])),value(d.almosaferBreakfastMealDiff),value(d.almosaferBreakfastPerPerson),d.almosaferError || d.almosaferCancellation || 'غير متاح',selectedRoom?.bookingUrl]));
-  daily.push(['مجموع الليالي لكل الغرف','',...dailyFields.map(([key])=>value(summary[key])),'-','-','المجموع يظهر عند توفر كل الليالي','']);
+  const daily=[...meta,['اليوم','التاريخ',...dailyFields.map(f=>`${f[1]}: الإجمالي (ر.س/غرفة/ليلة)`),...taxHeaders,'فرق الفطور للغرفة','فرق الفطور للفرد','حالة اليوم','رابط المصدر']];
+  pairs.forEach(d=>daily.push([d.dayOfWeek,d.date,...dailyFields.map(([key])=>d.almosaferAvailability==='error'?'تعذر التحقق':value(d[key])),...dailyFields.flatMap(([key,,field])=>taxValues(priceParts(d.almosaferOffers?.[field],d[key]))),value(d.almosaferBreakfastMealDiff),value(d.almosaferBreakfastPerPerson),d.almosaferError || d.almosaferCancellation || 'غير متاح',selectedRoom?.bookingUrl]));
+  daily.push(['مجموع الليالي لكل الغرف','',...dailyFields.map(([key])=>value(summary[key])),...fields.flatMap(([field])=>taxValues(sumPriceParts(pairs,field,summary.rooms || 1))),'-','-','المجموع يظهر عند توفر كل الليالي','']);
   const sheet=data=>{const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=Array.from({length:Math.max(...data.map(r=>r.length))},(_,i)=>({wch:i===0?28:i===1?18:30}));ws['!views']=[{RTL:true}];return ws;};
   XLSX.utils.book_append_sheet(workbook,sheet(daily),`الجدول اليومي (${pairs.length} ليلة)`);
+  const details=[...meta,['المصدر','الغرفة','السراير','مساحة الغرفة (م²)','اليوم','الوصول','المغادرة','البالغون لكل غرفة','عدد الغرف','الخطة','سعر الغرفة بدون الضرائب (ر.س/ليلة)','الضرائب والرسوم (ر.س/ليلة)','الإجمالي (ر.س/غرفة/ليلة)','تفصيل الضرائب والرسوم','الإلغاء','الدفع','بطاقة ائتمانية','سعة العرض (بالغين)','الغرف المتبقية','رابط المصدر','مرافق الغرفة','وصف الغرفة']];
+  for(const room of results) for(const day of room.dailyRates || []) for(const [field,label] of catalogFields([room],rateTier)) {
+    const offer=day.offers?.[field],total=day[`${field}Price`],parts=priceParts(offer,total);
+    details.push([room.sourceArabic,room.roomName,room.beddingLabel || 'لم يحدد المصدر',value(room.roomSizeM2),day.dayOfWeek,day.date,day.nextDate,room.adults,room.rooms,label,...taxValues(parts),value(total),parts?.items?.map(item=>`${item.name}: ${item.amount} ر.س`).join(' • ') || 'لم يحدد المصدر',offer?.cancellationPolicy || day.error || 'غير متاح',offer?.noPrepayment?'بدون دفع مسبق — الدفع أثناء الإقامة':offer?.paymentPolicy || 'لم يحدد المصدر',offer?.noCreditCard?'لا تحتاج بطاقة ائتمانية':'لم يحدد المصدر',value(offer?.capacityAdults),value(offer?.roomsLeft),room.bookingUrl,(room.roomAmenities || []).join(' • ') || 'لم يحدد المصدر',room.roomDescription || 'لم يحدد المصدر']);
+  }
+  XLSX.utils.book_append_sheet(workbook,sheet(details),'تفاصيل الغرف والأيام');
   if(viewMode==='all'||viewMode==='separated'||viewMode==='combined') {
     const allFields=catalogFields(results,rateTier);
     const catalog=[...meta,['المصدر','الغرفة','السراير',...allFields.flatMap(([,label])=>[`${label}: متوسط الليلة`,`${label}: مجموع الليالي`,`${label}: الليالي المتاحة`]),'سياسة الإلغاء','رابط المصدر']];

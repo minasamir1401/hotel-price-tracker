@@ -1,4 +1,5 @@
-import { money, mealPlans } from '../services/rates';
+import { money, mealPlans, sumPriceParts } from '../services/rates';
+import PriceBreakdown from './PriceBreakdown';
 export default function LiveSummaryCards({summary,resultsCount}) {
   if(!summary) return null;
   return <div className="space-y-4 mb-6">
@@ -13,7 +14,10 @@ export default function LiveSummaryCards({summary,resultsCount}) {
         {mealPlans.filter(([plan])=>plan==='roomOnly'||summary[`almosafer${plan[0].toUpperCase()+plan.slice(1)}AvailableNights`]>0).map(([plan,label])=>{
           const key=`almosafer${plan[0].toUpperCase()+plan.slice(1)}`;
           const available=summary[`${key}AvailableNights`] || 0;
-          return <div key={plan} className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><p className="text-sm font-bold">{summary.mealPlanLabels?.[plan] || label}</p><p className="font-mono font-bold text-lg mt-2">{money(summary[`${key}PerNight`])} {summary[`${key}PerNight`]!=null?'ر.س / متوسط الليلة':''}</p><p className="text-xs text-slate-600 mt-2">متاح {available} من {summary.nights} ليلة</p><p className="text-xs mt-2">مجموع الليالي لكل الغرف: {money(summary[key])} {summary[key]!=null?'ر.س':''}</p></div>;
+          const parts=sumPriceParts(summary.dailyBreakdown,plan,summary.rooms);
+          const average=parts && Object.fromEntries(Object.entries(parts).map(([field,value])=>[field,Math.round(value/summary.rooms/summary.nights*100)/100]));
+          if(average)average.taxesAndFees=Math.round((average.totalPrice-average.priceBeforeTax)*100)/100;
+          return <div key={plan} className="rounded-2xl bg-slate-50 border border-slate-200 p-4"><p className="text-sm font-bold mb-2">{summary.mealPlanLabels?.[plan] || label} — متوسط الليلة</p><PriceBreakdown total={summary[`${key}PerNight`]} parts={average}/><p className="text-xs text-slate-600 mt-2">متاح {available} من {summary.nights} ليلة</p><p className="text-xs mt-2">إجمالي الليالي لكل الغرف شامل الضرائب: {money(summary[key])} {summary[key]!=null?'ر.س':''}</p></div>;
         })}
       </div>
       {summary.warnings?.length>0&&<div role="alert" className="text-amber-900 bg-amber-50 rounded-xl p-3 mt-4 text-sm">{summary.warnings.join(' • ')}</div>}

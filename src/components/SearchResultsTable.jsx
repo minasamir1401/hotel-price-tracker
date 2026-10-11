@@ -1,13 +1,18 @@
 import {useState} from 'react';
 import ExportExcelButton from './ExportExcelButton';
 import LiveDailyRateBreakdown from './DailyRateBreakdown';
-import {rateFields} from '../services/rates';
-export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,retryingDate,retryDayError}) {
+import {summaryForRoom,catalogFields} from '../services/rates';
+export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,retryingDate,retryDayError}) {
   const [rateTier,setRateTier]=useState('both');
+  const [allRooms,setAllRooms]=useState(true);
   if(!results?.length) return null;
-  const hasFree=rateFields(summary,'flexible').length>0;
+  const hasFree=catalogFields(results,'flexible').length>0;
   const activeTier=rateTier==='flexible'&&!hasFree?'both':rateTier;
   return <div>
+    <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl p-3 mb-4 border border-slate-200 text-sm">
+      <span>وقت آخر استعلام: {summary?.searchedAt} • {summary?.hotelName}</span>
+      {onRefreshAll && <button type="button" onClick={onRefreshAll} className="text-blue-700 font-bold underline">تحديث كل الأسعار من المصدر</button>}
+    </div>
     <div className="bg-white/90 rounded-2xl p-4 mb-4 border border-slate-200">
       <div className="flex flex-wrap justify-between items-center mb-2">
         <label htmlFor="selected-room" className="font-bold text-slate-800">الغرفة المطلوب عرض جدول أسعارها اليومية وتصديرها</label>
@@ -27,7 +32,11 @@ export default function LiveSearchResultsTable({results,summary,searchParams,onE
     </div>
     <div className="flex flex-wrap justify-between items-center gap-3 mb-4"><div className="flex gap-2">{[['both','كل العروض'],['flexible','إلغاء مجاني']].map(([value,label])=><button type="button" key={value} disabled={value==='flexible'&&!hasFree} onClick={()=>setRateTier(value)} className={`px-4 py-2 rounded-xl text-xs font-bold border disabled:opacity-40 ${activeTier===value?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-700 border-slate-200'}`}>{label}</button>)}</div><ExportExcelButton results={results} summary={summary} searchParams={searchParams} rateTier={activeTier} onExport={onExport}/></div>
     {retryDayError && <p role="alert" className="mb-3 text-sm text-red-700 bg-red-50 rounded-xl p-3">{retryDayError}</p>}
-    <LiveDailyRateBreakdown dailyBreakdown={summary?.dailyBreakdown} summary={summary} rateTier={activeTier} onRetryDay={onRetryDay} retryingDate={retryingDate}/>
+    <label className="flex items-center gap-2 mb-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={allRooms} onChange={e=>setAllRooms(e.target.checked)}/>عرض جدول يومي مستقل لكل الغرف ({results.length})</label>
+    {(allRooms ? results : results.filter(r=>r.id===(selectedRoomId || results[0].id))).map(room=>{
+      const roomSummary=summaryForRoom(summary,room);
+      return <LiveDailyRateBreakdown key={room.id} dailyBreakdown={roomSummary?.dailyBreakdown} summary={roomSummary} rateTier={activeTier} onRetryDay={room.id===selectedRoomId?onRetryDay:undefined} retryingDate={retryingDate}/>;
+    })}
   </div>;
 }
 

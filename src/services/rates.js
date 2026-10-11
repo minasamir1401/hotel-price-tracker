@@ -3,6 +3,19 @@ export const mealPlans = [['roomOnly','إقامة فقط'],['breakfast','إقا�
 export const money = value => value === null || value === undefined || !Number.isFinite(value) ? 'غير متاح' : value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 export const completeSum = values => values.length && values.every(v=>typeof v==='number' && Number.isFinite(v)) ? Math.round(values.reduce((sum,v)=>sum+v,0)*100)/100 : null;
 
+export function priceParts(offer, total = offer?.price) {
+  const parts = offer?.taxBreakdown;
+  if (!parts || parts.currency !== 'SAR' || ![parts.priceBeforeTax,parts.taxesAndFees,parts.totalPrice,total].every(v=>typeof v==='number' && Number.isFinite(v) && v>=0) ||
+      Math.abs(parts.totalPrice-total)>0.005 || Math.abs(parts.priceBeforeTax+parts.taxesAndFees-total)>0.005) return null;
+  return parts;
+}
+export function sumPriceParts(days,field,rooms=1) {
+  if (!days?.length) return null;
+  const values=days.map(day=>priceParts(day.almosaferOffers?.[field],day[`almosafer${field[0].toUpperCase()+field.slice(1)}`]));
+  if (values.some(v=>!v)) return null;
+  return Object.fromEntries(['priceBeforeTax','taxesAndFees','totalPrice'].map(key=>[key,completeSum(values.map(v=>v[key]*rooms))]));
+}
+
 export function replaceVerifiedNight(room, quote) {
   const fresh = quote?.dailyRates?.[0];
   const old = room.dailyRates.find(d => d.date === fresh?.date);
@@ -51,7 +64,8 @@ export function summaryForRoom(summary,room) {
   const fields=mealPlans.flatMap(([plan])=>[plan,`${plan}Flexible`]);
   const title=field=>field[0].toUpperCase()+field.slice(1);
   const selected={...summary,activeRoomId:room.id,almosaferRoom:room.roomName,beddingLabel:room.beddingLabel || 'لم يحدد المصدر',bedFilterStatus:room.bedFilterStatus,requestedBeds:room.requestedBeds,activeRoomCategory:room.roomCategory,almosaferCancellation:room.cancellationPolicy,almosaferCancellationLowest:room.cancellationPolicyLowest,almosaferCancellationFlexible:room.cancellationPolicyFlexible,warnings:[...(summary.warnings || [])]};
-  selected.source=room.source;selected.sourceArabic=room.sourceArabic || 'المسافر';selected.mealPlanLabels=room.mealPlanLabels;
+  selected.source=room.source;selected.sourceArabic=room.sourceArabic || 'المسافر';selected.mealPlanLabels=room.mealPlanLabels;selected.roomSizeM2=room.roomSizeM2;
+  selected.roomDescription=room.roomDescription;selected.roomAmenities=room.roomAmenities;
   if(room.bedFilterStatus==='unknown')selected.warnings.push('هذه الغرفة غير مؤكدة المطابقة لاختيار السراير؛ المصدر لم يحدد العدد أو النوع المطلوب.');
   selected.dailyBreakdown=summary.dailyBreakdown.map(base=>{
     const rate=room.dailyRates.find(d=>d.date===base.date);

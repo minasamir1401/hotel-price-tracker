@@ -288,6 +288,7 @@ export default function App() {
                 onRoomSelect={setSelectedRoomId}
                 onQuickDuration={handleQuickDuration}
                 onRetryDay={handleRetryDay}
+                onRefreshAll={()=>handleSearch({...summary.searchParams,refresh:true})}
                 retryingDate={retryingDate}
                 retryDayError={retryDayError}
               />
