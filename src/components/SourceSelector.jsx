@@ -26,6 +26,6 @@ export default function SourceSelector({ selectedSources, onChange }) {
         </button>;
       })}
     </div>
-    {selectedSources.includes('booking') && <p className="text-xs text-slate-600">Booking: أدخل رابط الفندق الذي يحتوي hotel_id أو dest_id وdest_type=hotel، أو الرقم بصيغة booking:184752. متاح حاليًا لغرفة واحدة بدون أطفال.</p>}
+    {selectedSources.includes('booking') && <p className="text-xs text-slate-600">Booking: الصق رابط الفندق الكامل من صفحة الأسعار؛ يتم تحديد الفندق والتحقق منه تلقائيًا. متاح حاليًا لغرفة واحدة بدون أطفال.</p>}
   </div>;
 }

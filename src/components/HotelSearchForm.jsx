@@ -216,7 +216,7 @@ export default function HotelSearchForm({
       if (sequence !== roomRequest.current.sequence || controller.signal.aborted) return;
       if (data && data.success) {
         if (data.hotelName) {
-          setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input }) : prev);
+          setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input, resolvedHotelId: data.hotelId }) : prev);
         }
         if (data.rooms && data.rooms.length > 0) {
           setAvailableRooms(data.rooms);
@@ -463,9 +463,9 @@ export default function HotelSearchForm({
                       {urlDetails.detectedPlatform}
                     </span>
                   )}
-                  {urlDetails.extractedHotelId && (
+                  {(urlDetails.extractedHotelId || (formData.resolvedHotelInput === formData.hotelInput && formData.resolvedHotelId)) && (
                     <span className="px-2.5 py-0.5 rounded-lg bg-white text-slate-800 font-mono font-bold text-xs border border-slate-300 shadow-2xs">
-                      معرّف الفندق: {urlDetails.extractedHotelId}
+                      معرّف الفندق: {urlDetails.extractedHotelId || formData.resolvedHotelId}
                     </span>
                   )}
                 </div>
