@@ -50,17 +50,32 @@ export function replaceVerifiedNight(room, quote) {
   return updated;
 }
 
+// Equal prices alone do not identify an offer: different rooms/rates can cost the same.
+export function sameSourceOffer(a,b) {
+  return Boolean(a?.packageId && a?.roomId && a?.source && a?.currency && Number.isFinite(a.price) && b &&
+    a.packageId===b.packageId && a.roomId===b.roomId && a.source===b.source &&
+    a.price===b.price && a.currency===b.currency && a.refundable===b.refundable);
+}
+export function repeatedRateField(day,field,fields) {
+  if(field.endsWith('Flexible') || !fields.some(([key])=>key===`${field}Flexible`))return null;
+  const offers=day.almosaferOffers || day.offers;
+  return sameSourceOffer(offers?.[field],offers?.[`${field}Flexible`]) ? `${field}Flexible` : null;
+}
+
 export function rateFields(summary,rateTier='both') {
   const available=(field)=>summary?.[`almosafer${field[0].toUpperCase()+field.slice(1)}AvailableNights`]>0||summary?.dailyBreakdown?.some(d=>d[`almosafer${field[0].toUpperCase()+field.slice(1)}`]!=null);
   const hasAnyRoomOnly = available('roomOnly') || available('roomOnlyFlexible');
   return mealPlans.filter(([plan])=>(plan==='roomOnly'?hasAnyRoomOnly:(available(plan)||available(`${plan}Flexible`)))).flatMap(([plan,defaultLabel])=>{
     const label=summary?.mealPlanLabels?.[plan] || defaultLabel;
     if(rateTier==='flexible')return available(`${plan}Flexible`)?[[`${plan}Flexible`,`${label} — إلغاء مجاني`]]:[];
-    return [[plan,label],...(rateTier==='both'&&available(`${plan}Flexible`)?[[`${plan}Flexible`,`${label} — إلغاء مجاني`]]:[])];
+    const flexible=`${plan}Flexible`;
+    const days=summary?.dailyBreakdown?.filter(d=>(d.almosaferOffers || d.offers)?.[plan]) || [];
+    const onlySameOffer=rateTier==='both' && available(flexible) && days.length>0 && days.every(d=>sameSourceOffer((d.almosaferOffers || d.offers)[plan],(d.almosaferOffers || d.offers)[flexible]));
+    return [...(onlySameOffer?[]:[[plan,label]]),...(rateTier==='both'&&available(flexible)?[[flexible,`${label} — إلغاء مجاني`]]:[])];
   });
 }
 export function catalogFields(results,rateTier='both') {
-  const summary={mealPlanLabels:{}};
+  const summary={mealPlanLabels:{},dailyBreakdown:results.flatMap(r=>r.dailyRates || [])};
   for(const [plan] of mealPlans)summary.mealPlanLabels[plan]=[...new Set(results.map(r=>r.mealPlanLabels?.[plan]).filter(Boolean))].join(' / ');
   for(const [plan] of mealPlans)for(const field of [plan,`${plan}Flexible`])summary[`almosafer${field[0].toUpperCase()+field.slice(1)}AvailableNights`]=Math.max(0,...results.map(r=>r[`${field}AvailableNights`] || 0));
   return rateFields(summary,rateTier);

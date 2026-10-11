@@ -4,8 +4,50 @@ import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
 import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
-import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey} from '../src/services/rates.js';
+import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey,rateFields,repeatedRateField} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
+
+const elafTwinRoom=()=>{
+  const offer=(packageId,net,total,refundable)=>({packageId,roomId:'866174111',source:'Booking Android app API',currency:'SAR',price:total,refundable,
+    taxBreakdown:{currency:'SAR',priceBeforeTax:net,taxesAndFees:Math.round((total-net)*100)/100,totalPrice:total},cancellationPolicy:refundable?'إلغاء مجاني':'غير قابل للاسترداد'});
+  const roomOnly=offer('866174111_355871734_2_2_0',765,901.74,true);
+  return {id:'twin-haram',roomIdentity:'booking:8661741:866174111',source:'Booking',sourceArabic:'بوكينج',roomName:'Standard Twin Room Haram View',beddingLabel:'2 single beds',rooms:1,adults:2,nights:1,
+    roomOnlyAvailableNights:1,roomOnlyFlexibleAvailableNights:1,breakfastAvailableNights:1,breakfastFlexibleAvailableNights:1,
+    roomOnlyTotalPrice:901.74,roomOnlyFlexibleTotalPrice:901.74,breakfastTotalPrice:1039.66,breakfastFlexibleTotalPrice:1060.88,
+    dailyRates:[{date:'2026-10-24',nextDate:'2026-10-25',dayOfWeek:'السبت',availability:'available',roomOnlyPrice:901.74,roomOnlyFlexiblePrice:901.74,breakfastPrice:1039.66,breakfastFlexiblePrice:1060.88,
+      offers:{roomOnly,roomOnlyFlexible:{...roomOnly},breakfast:offer('866174111_354821435_0_1_0',882,1039.66,false),breakfastFlexible:offer('866174111_355871734_0_1_0',900,1060.88,true)}}]};
+};
+test('Booking mobile offer 765 appears once with free cancellation in daily and detailed Excel, retaining the source room name',()=>{
+  const room=elafTwinRoom(),base={rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-24',dayOfWeek:'السبت'}]},summary=summaryForRoom(base,room);
+  assert.deepEqual(rateFields(summary).map(([field])=>field),['roomOnlyFlexible','breakfast','breakfastFlexible']);
+  assert.equal(summary.almosaferRoom,room.roomName);
+  assert.equal(summary.almosaferRoomOnly,901.74); // Cheapest-price calculations stay intact.
+  const book=buildExportWorkbook({},[room],summary);
+  const daily=XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{header:1});
+  assert.deepEqual(daily.find(r=>r[0]==='السبت').slice(2,5),[901.74,1039.66,1060.88]);
+  assert.equal(daily.find(r=>r[0]==='السبت').filter(v=>v===765).length,1);
+  const details=XLSX.utils.sheet_to_json(book.Sheets['تفاصيل الغرف والأيام'],{header:1}).filter(r=>r[1]===room.roomName && r[4]==='السبت');
+  assert.equal(details.length,3);assert.deepEqual(details.map(r=>r[10]),[765,882,900]);
+  assert.ok(details[0][9].includes('إلغاء مجاني'));
+});
+test('Equal prices with distinct rate or room identities remain separate, and mixed nights reference only identical offers',()=>{
+  const room=elafTwinRoom(),base={rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-24'}]};
+  for(const change of [{packageId:'other-block'},{roomId:'other-room'},{source:'other-source'}]) {
+    const changed={...room,dailyRates:room.dailyRates.map(d=>({...d,offers:{...d.offers,roomOnly:{...d.offers.roomOnly,...change}}}))};
+    const summary=summaryForRoom(base,changed),fields=rateFields(summary);
+    assert.ok(fields.some(([field])=>field==='roomOnly'));
+    assert.equal(repeatedRateField(summary.dailyBreakdown[0],'roomOnly',fields),null);
+  }
+  const second={...room.dailyRates[0],date:'2026-10-25',offers:{...room.dailyRates[0].offers,roomOnly:{...room.dailyRates[0].offers.roomOnly,packageId:'different',refundable:false}}};
+  const summary=summaryForRoom({...base,dailyBreakdown:[{date:'2026-10-24'},{date:'2026-10-25'}]},{...room,dailyRates:[...room.dailyRates,second]}),fields=rateFields(summary);
+  assert.equal(repeatedRateField(summary.dailyBreakdown[0],'roomOnly',fields),'roomOnlyFlexible');
+  assert.equal(repeatedRateField(summary.dailyBreakdown[1],'roomOnly',fields),null);
+  assert.deepEqual(rateFields(summary,'flexible').map(([f])=>f),['roomOnlyFlexible','breakfastFlexible']);
+  assert.ok(rateFields(summary,'lowest').some(([f])=>f==='roomOnly'));
+  const king={...room,id:'king',roomName:'Standard King Room',beddingLabel:'1 queen bed'};
+  assert.equal(summaryForRoom(summary,king).almosaferRoom,'Standard King Room');
+  assert.equal(summaryForRoom(summary,room).almosaferRoom,room.roomName);
+});
 
 test('Displayed search results belong to their hotel, dates, occupancy, source and bed filters',()=>{
   const params={hotelInput:'booking:184752',checkIn:'2026-10-20',checkOut:'2026-10-21',adults:2,rooms:1,sources:['booking']};

@@ -1,8 +1,9 @@
-import { money, rateFields, sumPriceParts } from '../services/rates';
+import { money, rateFields, sumPriceParts, repeatedRateField } from '../services/rates';
 import PriceBreakdown from './PriceBreakdown';
 export default function LiveDailyRateBreakdown({dailyBreakdown,summary,rateTier='both',onRetryDay,retryingDate}) {
   if(!dailyBreakdown?.length) return null;
-  const fields=rateFields(summary,rateTier).map(([field,label])=>[`almosafer${field[0].toUpperCase()+field.slice(1)}`,label,field]);
+  const activeFields=rateFields(summary,rateTier);
+  const fields=activeFields.map(([field,label])=>[`almosafer${field[0].toUpperCase()+field.slice(1)}`,label,field]);
   const hasAvailable = dailyBreakdown.some(d => fields.some(([key]) => d[key] !== null && d[key] !== undefined && d.almosaferAvailability !== 'unavailable' && d.almosaferAvailability !== 'error'));
   if (!hasAvailable) return null;
   const hasAlternatives = dailyBreakdown.some(d=>d.isAlternative);
@@ -27,7 +28,7 @@ export default function LiveDailyRateBreakdown({dailyBreakdown,summary,rateTier=
         <td className="p-3 text-center font-medium">{d.dayOfWeek}</td>
         <td className="p-3 text-center font-mono whitespace-nowrap">{d.date}</td>
         {fields.map(([key,,field])=><td key={key} className="p-3 text-center align-top" title={d.almosaferError || ''}>
-          {d.almosaferAvailability==='error'?'تعذر التحقق':<PriceBreakdown total={d[key]} offer={d.almosaferOffers?.[field]} showPolicy/>}
+          {d.almosaferAvailability==='error'?'تعذر التحقق':repeatedRateField(d,field,activeFields)?<span className="text-xs text-slate-500">نفس عرض الإلغاء المجاني</span>:<PriceBreakdown total={d[key]} offer={d.almosaferOffers?.[field]} showPolicy/>}
           {d[`${key}IsAlternative`] && d[key] !== null && (
             <span className="block text-[10px] text-amber-800 bg-amber-100/80 rounded px-1.5 py-0.5 mt-0.5 font-sans" title={`سعر حقيقي مستخرج من الغرفة البديلة: ${d.alternativeRoomName}`}>
               بديل متاح: {d.alternativeRoomName}
