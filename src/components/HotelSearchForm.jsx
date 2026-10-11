@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { Search, Calendar, Link2, Loader2, ClipboardPaste, Building2, Compass, Users, ListFilter } from 'lucide-react';
 import SourceSelector from './SourceSelector';
 import { fetchHotelRoomsList } from '../services/api';
@@ -16,6 +16,10 @@ export default function HotelSearchForm({
   const [isFetchingRooms, setIsFetchingRooms] = useState(false);
   const [roomsError, setRoomsError] = useState('');
   const roomRequest = useRef({ sequence: 0, controller: null });
+  const roomCallbacks = useRef({ setFormData, onSourceChecked });
+  useLayoutEffect(() => {
+    roomCallbacks.current = { setFormData, onSourceChecked };
+  }, [setFormData, onSourceChecked]);
 
   const addDaysToDate = (dateStr, days) => {
     if (!dateStr) dateStr = today;
@@ -182,7 +186,6 @@ export default function HotelSearchForm({
     }
 
     setFormData(updated);
-    setAvailableRooms([]);
     
 
   };
@@ -234,10 +237,10 @@ export default function HotelSearchForm({
       if (sequence !== roomRequest.current.sequence || controller.signal.aborted) return;
       if (data && data.success) {
         if (data.hotelName) {
-          setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input, resolvedHotelId: data.hotelId }) : prev);
+          roomCallbacks.current.setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input, resolvedHotelId: data.hotelId }) : prev);
         }
         if (data.rooms && data.rooms.length > 0) {
-          setAvailableRooms(data.rooms);
+          setAvailableRooms(previous => previous.length === data.rooms.length && previous.every((room, index) => room === data.rooms[index]) ? previous : data.rooms);
 
         } else {
           setAvailableRooms([]);
@@ -251,13 +254,22 @@ export default function HotelSearchForm({
     } finally {
       if (sequence === roomRequest.current.sequence && !controller.signal.aborted) {
         setIsFetchingRooms(false);
-        onSourceChecked?.();
+        roomCallbacks.current.onSourceChecked?.();
       }
     }
-  }, [onSourceChecked, today, setFormData]);
+  }, [today]);
 
-  const roomQuery = useMemo(() => ({ hotelInput: formData.hotelInput, checkIn: formData.checkIn, adults: formData.adults, rooms: formData.rooms, children: formData.children, childAges: formData.childAges || [] }),
-    [formData.hotelInput, formData.checkIn, formData.adults, formData.rooms, formData.children, formData.childAges]);
+  // Only a changed room query should reset the list; status and callback updates must not refetch it.
+  const roomQueryKey = JSON.stringify({
+    hotelInput: formData.hotelInput,
+    checkIn: formData.checkIn,
+    adults: formData.adults,
+    rooms: formData.rooms,
+    children: formData.children,
+    childAges: formData.childAges || [],
+    sources: formData.sources?.length === 1 ? formData.sources : [],
+  });
+  const roomQuery = useMemo(() => JSON.parse(roomQueryKey), [roomQueryKey]);
   useEffect(() => {
     const input = roomQuery.hotelInput || '';
     const control = roomRequest.current;
@@ -519,7 +531,7 @@ export default function HotelSearchForm({
           
           {/* Room Selection */}
           {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com') || formData.hotelInput?.includes('booking.com') || /^booking:/i.test(formData.hotelInput || '')) && (
-            <div className="mt-3 p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-blue-200 shadow-sm animate-fadeIn">
+            <div className="mt-3 p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-blue-200 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
                   <ListFilter className="w-4 h-4 text-blue-600" />
@@ -591,11 +603,11 @@ export default function HotelSearchForm({
                       )}
                     </div>
                   </button>
-                  {availableRooms.map((room, idx) => {
+                  {availableRooms.map((room) => {
                     const isSelected = formData.roomName === room;
                     return (
                       <button
-                        key={idx}
+                        key={room}
                         type="button"
                         onClick={() => {
                           if (isSelected) {
