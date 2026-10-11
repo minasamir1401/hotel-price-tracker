@@ -4,7 +4,7 @@ import LiveDailyRateBreakdown from './DailyRateBreakdown';
 import {summaryForRoom,catalogFields} from '../services/rates';
 export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,retryingDate,retryDayError}) {
   const [rateTier,setRateTier]=useState('both');
-  const [allRooms,setAllRooms]=useState(true);
+  const [allRooms,setAllRooms]=useState(!searchParams?.roomName && !searchParams?.roomKeywords?.length);
   if(!results?.length) return null;
   const hasFree=catalogFields(results,'flexible').length>0;
   const activeTier=rateTier==='flexible'&&!hasFree?'both':rateTier;

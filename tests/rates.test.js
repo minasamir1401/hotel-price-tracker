@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
 import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
-import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey,rateFields,repeatedRateField} from '../src/services/rates.js';
+import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey,rateFields,repeatedRateField,roomForSearch} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
 
 const elafTwinRoom=()=>{
@@ -47,6 +47,17 @@ test('Equal prices with distinct rate or room identities remain separate, and mi
   const king={...room,id:'king',roomName:'Standard King Room',beddingLabel:'1 queen bed'};
   assert.equal(summaryForRoom(summary,king).almosaferRoom,'Standard King Room');
   assert.equal(summaryForRoom(summary,room).almosaferRoom,room.roomName);
+});
+test('Searching the selected Twin Haram View uses its own table, summary and export instead of the first King result',()=>{
+  const twin=elafTwinRoom(),king={...twin,id:'king',roomName:'Standard King Room'},results=[king,twin];
+  assert.equal(roomForSearch(results,{roomName:twin.roomName},{almosaferRoom:king.roomName}),twin);
+  assert.equal(roomForSearch(results,{roomKeywords:[twin.roomName]},null),twin);
+  assert.equal(roomForSearch(results,{}, {almosaferRoom:twin.roomName,source:'Booking'}),twin);
+  assert.equal(roomForSearch(results,{},null),king);
+  const chosen=roomForSearch(results,{roomName:twin.roomName},null);
+  const summary=summaryForRoom({rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-24'}]},chosen);
+  assert.equal(summary.activeRoomId,twin.id);assert.equal(summary.almosaferRoom,twin.roomName);
+  assert.ok(getExportFileName({},results,summary).includes(twin.roomName));
 });
 
 test('Displayed search results belong to their hotel, dates, occupancy, source and bed filters',()=>{

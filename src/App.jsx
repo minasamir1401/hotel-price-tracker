@@ -9,7 +9,7 @@ import EmptyState from './components/EmptyState';
 import ErrorState from './components/ErrorState';
 import DailyPricesView from './components/DailyPricesView';
 import { startHotelPriceSearch, getSystemStatus, startDailyPricesSearch } from './services/api';
-import { summaryForRoom, replaceVerifiedNight, searchContextKey } from './services/rates';
+import { summaryForRoom, replaceVerifiedNight, searchContextKey, roomForSearch } from './services/rates';
 
 export default function App() {
   const [{ tomorrowStr, tenDaysLaterStr }] = useState(() => {
@@ -163,7 +163,7 @@ export default function App() {
         } else {
           setResults(response.data);
           setSummary({ ...response.summary, searchParams: params });
-          setSelectedRoomId(response.data[0].id);
+          setSelectedRoomId(roomForSearch(response.data,params,response.summary).id);
           setSearchState('success');
           setSystemStatus((prev) => ({
             ...prev,

@@ -10,6 +10,12 @@ export function searchContextKey(params) {
     mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true});
 }
 
+export function roomForSearch(results,params,summary) {
+  const requested=params?.roomName || params?.roomKeywords?.[0];
+  return (requested && results.find(room=>room.roomName===requested)) ||
+    results.find(room=>room.roomName===summary?.almosaferRoom && (!summary?.source || room.source===summary.source)) || results[0];
+}
+
 export function priceParts(offer, total = offer?.price) {
   const parts = offer?.taxBreakdown;
   if (!parts || parts.currency !== 'SAR' || ![parts.priceBeforeTax,parts.taxesAndFees,parts.totalPrice,total].every(v=>typeof v==='number' && Number.isFinite(v) && v>=0) ||
