@@ -119,7 +119,18 @@ export default function HotelSearchForm({
       const adultsParam = url.searchParams.get('group_adults') || url.searchParams.get('req_adults') || url.searchParams.get('adults');
       if (adultsParam) {
         const aNum = parseInt(adultsParam, 10);
-        if (!isNaN(aNum)) updates.adults = detectedPlatform === 'بوكينج (Booking)' && updates.rooms > 1 ? aNum / updates.rooms : aNum;
+        if (!isNaN(aNum) && aNum > 0) {
+          const roomsCount = Math.max(1, updates.rooms || 1);
+          updates.adults = (detectedPlatform === 'بوكينج (Booking)' && roomsCount > 1)
+            ? Math.max(1, Math.round(aNum / roomsCount))
+            : Math.max(1, aNum);
+        }
+      }
+      if (updates.adults !== undefined) {
+        updates.adults = Math.max(1, Math.min(8, Math.round(Number(updates.adults) || 2)));
+      }
+      if (updates.rooms !== undefined) {
+        updates.rooms = Math.max(1, Math.min(4, Math.round(Number(updates.rooms) || 1)));
       }
       if (detectedPlatform === 'بوكينج (Booking)') {
         const childrenParam = url.searchParams.get('group_children') || url.searchParams.get('req_children');
@@ -154,6 +165,13 @@ export default function HotelSearchForm({
           ...parsed,
         };
       }
+    }
+
+    if (updated.adults !== undefined) {
+      updated.adults = Math.max(1, Math.min(8, Math.round(Number(updated.adults) || 2)));
+    }
+    if (updated.rooms !== undefined) {
+      updated.rooms = Math.max(1, Math.min(4, Math.round(Number(updated.rooms) || 1)));
     }
 
     if (!updated.checkIn) {
