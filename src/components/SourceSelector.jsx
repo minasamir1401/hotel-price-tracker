@@ -26,6 +26,6 @@ export default function SourceSelector({ selectedSources, onChange }) {
         </button>;
       })}
     </div>
-    {selectedSources.includes('booking') && <p className="text-xs text-slate-600">Booking: الصق رابط الفندق الكامل من صفحة الأسعار؛ يتم تحديد الفندق والتحقق منه تلقائيًا. متاح حاليًا لغرفة واحدة بدون أطفال.</p>}
+    {selectedSources.includes('booking') && <p className="text-xs text-slate-600">Booking: الصق رابط الفندق أو رابط المشاركة Share؛ يتم تحديد الفندق والتحقق منه عبر التطبيق. متاح حاليًا لغرفة واحدة بدون أطفال.</p>}
   </div>;
 }
