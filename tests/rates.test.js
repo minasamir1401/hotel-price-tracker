@@ -4,8 +4,15 @@ import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
 import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
-import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts} from '../src/services/rates.js';
+import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
+
+test('Displayed search results belong to their hotel, dates, occupancy, source and bed filters',()=>{
+  const params={hotelInput:'booking:184752',checkIn:'2026-10-20',checkOut:'2026-10-21',adults:2,rooms:1,sources:['booking']};
+  const key=searchContextKey(params);
+  assert.equal(searchContextKey({...params,resolvedHotelName:'Verified property',refresh:true}),key);
+  for(const change of [{hotelInput:'booking:8935710'},{checkIn:'2026-10-22'},{adults:3},{sources:['almosafer']},{bedType:'single'},{roomName:'Twin'}])assert.notEqual(searchContextKey({...params,...change}),key);
+});
 
 test('Separate tax exports preserve each room, date and offer and never infer unknown taxes',()=>{
   const parts={currency:'SAR',priceBeforeTax:143,taxesAndFees:25.03,totalPrice:168.03,items:[{name:'VAT',amount:21.45},{name:'City tax',amount:3.58}]};
@@ -24,6 +31,9 @@ test('Separate tax exports preserve each room, date and offer and never infer un
   const triple=rows.find(r=>r[1]==='Triple Room');assert.deepEqual(triple.slice(10,13),['غير متاح','غير متاح',168.03]);
   const selected=XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]],{header:1});
   assert.ok(selected.at(-1).includes(286));assert.ok(selected.at(-1).includes(50.06));
+  const catalog=XLSX.utils.sheet_to_json(workbook.Sheets['عروض بوكينج'],{header:1});
+  assert.ok(!JSON.stringify(catalog).includes('متوسط'));
+  assert.equal(catalog.find(row=>row[1]==='King Room')[3],336.06);
 });
 
 test('Excel retains partner and direct offers of the same twin room with separate conditions',()=>{

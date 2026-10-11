@@ -9,7 +9,7 @@ export default function LiveDailyRateBreakdown({dailyBreakdown,summary,rateTier=
   return <div className="bg-white/90 rounded-3xl border border-slate-200 overflow-hidden mb-6">
     <div className="p-5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
       <div>
-        <h3 className="font-bold text-slate-900">الأسعار اليومية المباشرة — {summary?.almosaferRoom || summary?.roomName || 'تفاصيل الغرفة'}</h3>
+        <h3 className="font-bold text-slate-900">الأسعار اليومية المباشرة — {summary?.sourceArabic || 'المسافر'} — {summary?.almosaferRoom || summary?.roomName || 'تفاصيل الغرفة'}</h3>
         <p className="text-sm text-slate-600 mt-2">السراير: {summary.beddingLabel || 'لم يحدد المصدر'}{summary.roomSizeM2>0 ? ` • مساحة الغرفة: ${summary.roomSizeM2} م²` : ''}</p>
         {summary.roomAmenities?.length>0 && <p className="text-xs text-slate-600 mt-2" dir="auto">{summary.roomAmenities.join(' • ')}</p>}
         {summary.roomDescription && <details className="text-xs text-slate-600 mt-2 max-w-3xl"><summary className="cursor-pointer">وصف الغرفة حسب المصدر</summary><p className="mt-2" dir="auto">{summary.roomDescription}</p></details>}

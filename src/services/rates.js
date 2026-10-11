@@ -3,6 +3,13 @@ export const mealPlans = [['roomOnly','إقامة فقط'],['breakfast','إقا�
 export const money = value => value === null || value === undefined || !Number.isFinite(value) ? 'غير متاح' : value.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 export const completeSum = values => values.length && values.every(v=>typeof v==='number' && Number.isFinite(v)) ? Math.round(values.reduce((sum,v)=>sum+v,0)*100)/100 : null;
 
+export function searchContextKey(params) {
+  return JSON.stringify({hotel:String(params.hotelInput || '').trim(),checkIn:params.checkIn,checkOut:params.checkOut,
+    adults:Number(params.adults),children:Number(params.children || 0),rooms:Number(params.rooms),childAges:params.childAges || [],
+    sources:[...(params.sources || [])].sort(),roomName:params.roomName || '',roomKeywords:params.roomKeywords || [],
+    mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true});
+}
+
 export function priceParts(offer, total = offer?.price) {
   const parts = offer?.taxBreakdown;
   if (!parts || parts.currency !== 'SAR' || ![parts.priceBeforeTax,parts.taxesAndFees,parts.totalPrice,total].every(v=>typeof v==='number' && Number.isFinite(v) && v>=0) ||

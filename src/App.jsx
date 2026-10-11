@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import HotelSearchForm from './components/HotelSearchForm';
 import ComparisonSummaryCards from './components/ComparisonSummaryCards';
@@ -9,7 +9,7 @@ import EmptyState from './components/EmptyState';
 import ErrorState from './components/ErrorState';
 import DailyPricesView from './components/DailyPricesView';
 import { startHotelPriceSearch, getSystemStatus, startDailyPricesSearch } from './services/api';
-import { summaryForRoom, replaceVerifiedNight } from './services/rates';
+import { summaryForRoom, replaceVerifiedNight, searchContextKey } from './services/rates';
 
 export default function App() {
   const [{ tomorrowStr, tenDaysLaterStr }] = useState(() => {
@@ -38,6 +38,9 @@ export default function App() {
   });
 
   const [searchState, setSearchState] = useState('idle'); // idle | loading | success | no-results | error
+  const searchGeneration = useRef(0);
+  const formDataRef = useRef(formData);
+  useLayoutEffect(() => { formDataRef.current = formData; }, [formData]);
   const [errorMessage, setErrorMessage] = useState('');
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -65,7 +68,20 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [refreshStatus]);
 
+  const handleFormChange = useCallback(next => {
+    const previous = formDataRef.current;
+    const updated = typeof next==='function' ? next(previous) : next;
+    formDataRef.current = updated;
+    setFormData(updated);
+    if(searchContextKey(updated)!==searchContextKey(previous)) {
+      searchGeneration.current++;
+      setResults([]);setSummary(null);setDailyPricesData(null);setSelectedRoomId(null);
+      setSearchState('idle');setProgressInfo(null);setErrorMessage('');setRetryDayError('');
+    }
+  }, []);
+
   const handleSearch = async (submittedParams) => {
+    const generation = ++searchGeneration.current;
     const hotelInput = submittedParams?.hotelInput?.trim();
     if (!hotelInput) {
       setSearchState('error');
@@ -112,8 +128,9 @@ export default function App() {
           ...params,
           concurrency: 4,
         }, (prog) => {
-          setProgressInfo(prog);
+          if(generation===searchGeneration.current)setProgressInfo(prog);
         });
+        if(generation!==searchGeneration.current)return;
         
         if (dailyResult.success) {
           setDailyPricesData(dailyResult);
@@ -131,8 +148,9 @@ export default function App() {
 
       // Query the live source for comparison
       const response = await startHotelPriceSearch(params, (prog) => {
-        setProgressInfo(prog);
+        if(generation===searchGeneration.current)setProgressInfo(prog);
       });
+      if(generation!==searchGeneration.current)return;
 
       if (response.success) {
         if (!response.data || response.data.length === 0) {
@@ -162,13 +180,16 @@ export default function App() {
         }
       }
     } catch (err) {
+      if(generation!==searchGeneration.current)return;
       console.error('Search failed:', err);
       setProgressInfo(null);
       setSearchState('error');
       setErrorMessage('حدث خطأ أثناء الاتصال بالخادم، يرجى إعادة المحاولة.');
     } finally {
-      setProgressInfo(null);
-      refreshStatus();
+      if(generation===searchGeneration.current) {
+        setProgressInfo(null);
+        refreshStatus();
+      }
     }
   };
 
@@ -235,7 +256,7 @@ export default function App() {
           <HotelSearchForm
             formData={formData}
             resolvedHotelName={summary?.searchParams?.hotelInput===formData.hotelInput?summary.hotelName:null}
-            setFormData={setFormData}
+            setFormData={handleFormChange}
             onSearch={handleSearch}
             isLoading={searchState === 'loading'}
             onSourceChecked={refreshStatus}
