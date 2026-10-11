@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Building, ArrowUp } from 'lucide-react';
+import { Building, ArrowUp } from 'lucide-react';
 
 export default function EmptyState() {
   return (
@@ -12,7 +12,7 @@ export default function EmptyState() {
         ابدأ بإدخال بيانات الفندق واختيار مصدر البحث
       </h3>
       <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mb-6">
-        قم بملء حقول البحث وتحديد المصادر (المسافر أو المطار أو كلاهما) للاطلاع على مقارنة الأسعار المباشرة واكتشاف العرض الأوفر.
+        قم بملء حقول البحث وتحديد المصادر (المسافر أو المطار أو Booking) للاطلاع على مقارنة الأسعار المباشرة واكتشاف العرض الأوفر.
       </p>
 
       <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/70 backdrop-blur-md border border-white/80 text-xs font-semibold text-slate-700 shadow-2xs">

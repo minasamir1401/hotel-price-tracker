@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Building2, RefreshCw } from 'lucide-react';
 
 export default function Header({ systemReady, onRefreshStatus }) {
   return (
@@ -14,7 +14,7 @@ export default function Header({ systemReady, onRefreshStatus }) {
               لوحة مقارنة أسعار الفنادق
             </h1>
             <p className="text-xs text-slate-600 font-medium hidden sm:block">
-              Hotel Price Comparison Dashboard | Almosafer & Almatar
+              Hotel Price Comparison Dashboard | Almosafer, Almatar & Booking
             </p>
           </div>
         </div>
@@ -25,9 +25,9 @@ export default function Header({ systemReady, onRefreshStatus }) {
             <span className="text-blue-600 font-bold">ريال سعودي (SAR)</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/15 backdrop-blur-md border border-emerald-500/30 text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>{systemReady ? 'محركات البحث جاهزة' : 'فحص الاتصال'}</span>
+          <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full backdrop-blur-md border text-xs font-bold shadow-2xs ${systemReady ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
+            <span className={`w-2 h-2 rounded-full ${systemReady ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+            <span>{systemReady ? 'تم التحقق من المصادر المحددة' : 'راجع حالة اتصال المصادر'}</span>
           </div>
 
           <button

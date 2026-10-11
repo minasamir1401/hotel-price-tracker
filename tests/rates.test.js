@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
-import {startHotelPriceSearch,getSystemStatus} from '../src/services/api.js';
+import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
 import {summaryForRoom,replaceVerifiedNight} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
 
@@ -61,14 +61,43 @@ test('Selecting Almatar exports its actual meal names, source and selected booki
   const headers=rows.find(r=>r[0]==='اليوم');assert.ok(headers.some(x=>x.startsWith('إقامة وإفطار')));assert.ok(headers.some(x=>x.startsWith('إفطار + غداء أو عشاء')));
   const day=rows.find(r=>r[0]==='الخميس');assert.equal(day[2],113);assert.equal(day.at(-1),matar.bookingUrl);assert.ok(book.SheetNames.includes('عروض المصادر'));
 });
+test('Booking Excel preserves its source, taxed prices, unavailable room-only and selected link',()=>{
+  const params={hotelInput:'booking:184752'};
+  const summary={hotelName:'Al Marwa',checkIn:'2026-10-20',checkOut:'2026-10-21',nights:1,adults:2,rooms:1,dailyBreakdown:[{date:'2026-10-20',dayOfWeek:'الثلاثاء'}]};
+  const room={id:'booking-184752-0',source:'Booking',sourceArabic:'بوكينج',roomName:'Twin Kaaba view',beddingLabel:'2 single beds',bookingUrl:'https://www.booking.com/searchresults.html?hotel_id=184752',nights:1,breakfastTotalPrice:2527.90,breakfastPricePerNight:2527.90,breakfastAvailableNights:1,dailyRates:[{date:'2026-10-20',availability:'available',roomOnlyPrice:null,breakfastPrice:2527.90}]};
+  const selected=summaryForRoom(summary,room),book=buildExportWorkbook(params,[room],selected);
+  const reloaded=XLSX.read(XLSX.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});
+  const rows=XLSX.utils.sheet_to_json(reloaded.Sheets[reloaded.SheetNames[0]],{header:1});
+  assert.ok(rows[0][0].endsWith('بوكينج'));
+  const headers=rows.find(r=>r[0]==='اليوم'),day=rows.find(r=>r[0]==='الثلاثاء');
+  const breakfast=headers.findIndex(h=>h.startsWith('إقامة وفطور'));
+  assert.equal(day[breakfast],2527.90);assert.equal(day.at(-1),room.bookingUrl);
+  assert.equal(selected.dailyBreakdown[0].almosaferRoomOnly,null);
+  assert.ok(getExportFileName(params,[room],selected).includes('بوكينج'));
+});
 test('Empty and unavailable backend responses never generate example prices',async()=>{
   const saved=globalThis.fetch;
   try {
-    globalThis.fetch=async()=>({ok:true,json:async()=>({success:true,data:[],summary:null})});
+    globalThis.fetch=async()=>({ok:true,headers:{get:()=> 'application/json'},json:async()=>({success:true,data:[],summary:null})});
     assert.deepEqual((await startHotelPriceSearch({})).data,[]);
     globalThis.fetch=async()=>{throw new Error('network offline');};
     assert.equal((await startHotelPriceSearch({})).success,false);
     assert.equal((await getSystemStatus()).almosafer,'offline');
+  } finally {globalThis.fetch=saved;}
+});
+
+test('Room-list errors retain diagnostic references and requests include exact occupancy and refresh',async()=>{
+  const saved=globalThis.fetch;
+  try {
+    globalThis.fetch=async(url,options)=>{
+      assert.equal(options.method,'POST');
+      const body=JSON.parse(options.body);
+      assert.equal(body.rooms,2);assert.equal(body.children,1);assert.deepEqual(body.childAges,[7]);assert.equal(body.refresh,true);
+      return {ok:false,json:async()=>({success:false,message:'المصدر رفض الاتصال',code:'UPSTREAM_ACCESS_DENIED',diagnosticId:'test-reference'})};
+    };
+    const result=await fetchHotelRoomsList({hotelInput:'hotel',adults:2,rooms:2,children:1,childAges:[7],refresh:true});
+    assert.equal(result.success,false);assert.equal(result.diagnosticId,'test-reference');assert.equal(result.code,'UPSTREAM_ACCESS_DENIED');
+    assert.equal(result.message,'المصدر رفض الاتصال');
   } finally {globalThis.fetch=saved;}
 });
 

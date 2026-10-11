@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import HotelSearchForm from './components/HotelSearchForm';
 import ComparisonSummaryCards from './components/ComparisonSummaryCards';
@@ -12,18 +12,18 @@ import { startHotelPriceSearch, getSystemStatus, startDailyPricesSearch } from '
 import { summaryForRoom, replaceVerifiedNight } from './services/rates';
 
 export default function App() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
-  
-  const tenDaysLater = new Date(tomorrow);
-  tenDaysLater.setDate(tenDaysLater.getDate() + 10);
-  const tenDaysLaterStr = tenDaysLater.toISOString().split('T')[0];
+  const [{ tomorrowStr, tenDaysLaterStr }] = useState(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const later = new Date(tomorrow);
+    later.setDate(later.getDate() + 10);
+    return { tomorrowStr: tomorrow.toISOString().slice(0, 10), tenDaysLaterStr: later.toISOString().slice(0, 10) };
+  });
 
   const [formData, setFormData] = useState({
-    hotelInput: '',
-    checkIn: tomorrowStr,
-    checkOut: tenDaysLaterStr,
+    hotelInput: new URLSearchParams(window.location.search).get('hotel') || '',
+    checkIn: new URLSearchParams(window.location.search).get('checkIn') || tomorrowStr,
+    checkOut: new URLSearchParams(window.location.search).get('checkOut') || tenDaysLaterStr,
     adults: 2,
     children: 0,
     rooms: 1,
@@ -31,7 +31,7 @@ export default function App() {
     bedCount: 0,
     bedType: 'any',
     includeUnknownBeds: false,
-    sources: ['almosafer', 'almatar'],
+    sources: new URLSearchParams(window.location.search).get('source') === 'booking' ? ['booking'] : ['almosafer', 'almatar'],
     roomName: '',
     roomKeywords: [],
     mealPlan: '',
@@ -48,26 +48,22 @@ export default function App() {
   const [dailyPricesData, setDailyPricesData] = useState(null);
   const [progressInfo, setProgressInfo] = useState(null);
   const [systemStatus, setSystemStatus] = useState({
-    almosafer: 'ready',
-    almatar: 'ready',
+    almosafer: 'unchecked',
+    almatar: 'unchecked',
+    booking: 'unchecked',
     excelExport: 'ready',
     lastSearch: 'جاهز للاستعلام',
     errors: [],
   });
 
-  // Load system status on mount (clean idle state, zero hardcoded queries)
-  useEffect(() => {
-    refreshStatus();
+  const refreshStatus = useCallback(async () => {
+    try { setSystemStatus(await getSystemStatus()); }
+    catch (error) { console.error('Failed to get system status', error); }
   }, []);
-
-  const refreshStatus = async () => {
-    try {
-      const status = await getSystemStatus();
-      setSystemStatus(status);
-    } catch (e) {
-      console.error('Failed to get system status', e);
-    }
-  };
+  useEffect(() => {
+    const timer = setTimeout(refreshStatus, 0);
+    return () => clearTimeout(timer);
+  }, [refreshStatus]);
 
   const handleSearch = async (submittedParams) => {
     const hotelInput = submittedParams?.hotelInput?.trim();
@@ -108,8 +104,9 @@ export default function App() {
     try {
       const isAlmatarUrl = params.hotelInput && params.hotelInput.includes('almatar.com');
       const isAlmosaferUrl = params.hotelInput && params.hotelInput.includes('almosafer.com');
+      const isBooking = params.sources.includes('booking') || /^booking:/i.test(params.hotelInput) || params.hotelInput.includes('booking.com');
 
-      if (isAlmatarUrl || (params.sources.includes('almatar') && !isAlmosaferUrl && (params.roomKeywords && params.roomKeywords.length > 0))) {
+      if (!isBooking && (isAlmatarUrl || (params.sources.includes('almatar') && !isAlmosaferUrl && (params.roomKeywords && params.roomKeywords.length > 0)))) {
         // Run daily prices search if Almatar room is selected or direct Almatar URL is used
         const dailyResult = await startDailyPricesSearch({
           ...params,
@@ -169,6 +166,9 @@ export default function App() {
       setProgressInfo(null);
       setSearchState('error');
       setErrorMessage('حدث خطأ أثناء الاتصال بالخادم، يرجى إعادة المحاولة.');
+    } finally {
+      setProgressInfo(null);
+      refreshStatus();
     }
   };
 
@@ -224,7 +224,7 @@ export default function App() {
       </div>
 
       <Header
-        systemReady={systemStatus.almosafer === 'ready' && systemStatus.almatar === 'ready'}
+        systemReady={formData.sources.every(source => systemStatus[source] === 'ready')}
         onRefreshStatus={refreshStatus}
       />
 
@@ -238,6 +238,7 @@ export default function App() {
             setFormData={setFormData}
             onSearch={handleSearch}
             isLoading={searchState === 'loading'}
+            onSourceChecked={refreshStatus}
           />
         </section>
 
@@ -303,7 +304,7 @@ export default function App() {
       <footer className="border-t border-white/20 bg-slate-950/70 backdrop-blur-2xl py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-300">
           <div>
-            جميع الأسعار المعروضة بالريال السعودي (SAR) وتخضع لشروط وأحكام مزودي الخدمة (المسافر والمطار).
+            جميع الأسعار المعروضة بالريال السعودي (SAR) وتخضع لشروط وأحكام مزودي الخدمة (المسافر والمطار وBooking).
           </div>
           <div className="font-mono text-[11px] text-emerald-400 font-semibold">
             أسعار المصادر من الاستعلام المباشر • راجع وقت آخر تحديث

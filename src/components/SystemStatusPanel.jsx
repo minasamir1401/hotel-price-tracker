@@ -1,9 +1,13 @@
 import React from 'react';
-import { Activity, CheckCircle, AlertTriangle, XCircle, FileSpreadsheet, Server, Globe2, Plane } from 'lucide-react';
+import { Activity, FileSpreadsheet, Globe2, Plane } from 'lucide-react';
 
 export default function SystemStatusPanel({ status }) {
   const getStatusBadge = (state) => {
     switch (state) {
+      case 'unchecked':
+        return <span className="text-xs font-semibold text-slate-600">لم يُفحص الاتصال بعد</span>;
+      case 'blocked':
+        return <span className="text-xs font-semibold text-red-700">المصدر رفض الاتصال</span>;
       case 'ready':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -51,7 +55,7 @@ export default function SystemStatusPanel({ status }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Almosafer Engine */}
         <div className="flex items-center justify-between p-3 rounded-2xl border border-white/60 bg-white/50 backdrop-blur-md hover:bg-white/70 transition-all">
           <div className="flex items-center gap-2.5">
@@ -80,6 +84,10 @@ export default function SystemStatusPanel({ status }) {
           <div>{getStatusBadge(status.almatar)}</div>
         </div>
 
+        <div className="flex items-center justify-between p-3 rounded-2xl border border-white/60 bg-white/50">
+          <div><div className="text-xs font-bold text-slate-900">محرك بوكينج</div><div className="text-[11px] text-slate-500 font-mono">Booking Android app</div></div>
+          <div>{getStatusBadge(status.booking)}</div>
+        </div>
         {/* Excel Export Engine */}
         <div className="flex items-center justify-between p-3 rounded-2xl border border-white/60 bg-white/50 backdrop-blur-md hover:bg-white/70 transition-all">
           <div className="flex items-center gap-2.5">

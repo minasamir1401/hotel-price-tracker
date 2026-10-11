@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Calendar, Link2, Loader2, ClipboardPaste, Building2, Tag, Compass, Users, ListFilter } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Search, Calendar, Link2, Loader2, ClipboardPaste, Building2, Compass, Users, ListFilter } from 'lucide-react';
 import SourceSelector from './SourceSelector';
 import { fetchHotelRoomsList } from '../services/api';
 
@@ -9,17 +9,16 @@ export default function HotelSearchForm({
   setFormData,
   onSearch,
   isLoading,
+  onSourceChecked,
 }) {
-  const [urlDetails, setUrlDetails] = useState(null);
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
   const [availableRooms, setAvailableRooms] = useState(formData.roomName ? [formData.roomName] : []);
   const [isFetchingRooms, setIsFetchingRooms] = useState(false);
   const [roomsError, setRoomsError] = useState('');
+  const roomRequest = useRef({ sequence: 0, controller: null });
 
   const addDaysToDate = (dateStr, days) => {
-    if (!dateStr) {
-      const today = new Date();
-      dateStr = today.toISOString().split('T')[0];
-    }
+    if (!dateStr) dateStr = today;
     const parts = dateStr.split('-');
     const year = parseInt(parts[0], 10);
     const month = parseInt(parts[1], 10) - 1;
@@ -64,10 +63,13 @@ export default function HotelSearchForm({
       const decodedPath = decodeURIComponent(url.pathname);
 
       let detectedPlatform = null;
-      if (urlStr.includes('almosafer.com')) {
+      if ((url.hostname === 'almosafer.com' || url.hostname.endsWith('.almosafer.com'))) {
         updates.sources = ['almosafer'];
         detectedPlatform = 'المسافر (Almosafer)';
-      } else if (urlStr.includes('almatar.com')) {
+      } else if (url.hostname === 'booking.com' || url.hostname.endsWith('.booking.com')) {
+        updates.sources = ['booking'];
+        detectedPlatform = 'بوكينج (Booking)';
+      } else if ((url.hostname === 'almatar.com' || url.hostname.endsWith('.almatar.com'))) {
         updates.sources = ['almatar'];
         detectedPlatform = 'المطار (Almatar)';
       }
@@ -86,7 +88,7 @@ export default function HotelSearchForm({
       }
 
       if (!updates.extractedHotelId) {
-        const qId = url.searchParams.get('hotelId') || url.searchParams.get('id');
+        const qId = url.searchParams.get('hotel_id') || url.searchParams.get('hotelId') || url.searchParams.get('id') || (url.searchParams.get('dest_type') === 'hotel' ? url.searchParams.get('dest_id') : null);
         if (qId) updates.extractedHotelId = qId;
       }
 
@@ -94,7 +96,6 @@ export default function HotelSearchForm({
       const outDate = url.searchParams.get('checkout') || url.searchParams.get('checkOut');
       const isoIn = formatToIso(inDate);
       const isoOut = formatToIso(outDate);
-      const today = new Date().toISOString().split('T')[0];
       if (isoIn) {
         updates.checkIn = isoIn >= today ? isoIn : today;
       }
@@ -103,41 +104,36 @@ export default function HotelSearchForm({
         updates.checkOut = (isoOut > (updates.checkIn || today)) ? isoOut : minOut;
       }
 
-      const roomsParam = url.searchParams.get('rooms');
+      const roomsParam = url.searchParams.get('no_rooms') || url.searchParams.get('rooms');
       if (roomsParam) {
         if (roomsParam.includes('_adult')) {
           const adultsCount = parseInt(roomsParam.split('_')[0], 10);
           if (!isNaN(adultsCount)) updates.adults = adultsCount;
-          updates.rooms = roomsParam.split(/[,\*]/).length;
+          updates.rooms = roomsParam.split('*').length;
         } else {
           const rNum = parseInt(roomsParam, 10);
           if (!isNaN(rNum)) updates.rooms = rNum;
         }
       }
 
-      const adultsParam = url.searchParams.get('adults');
+      const adultsParam = url.searchParams.get('group_adults') || url.searchParams.get('req_adults') || url.searchParams.get('adults');
       if (adultsParam) {
         const aNum = parseInt(adultsParam, 10);
-        if (!isNaN(aNum)) updates.adults = aNum;
+        if (!isNaN(aNum)) updates.adults = detectedPlatform === 'بوكينج (Booking)' && updates.rooms > 1 ? aNum / updates.rooms : aNum;
+      }
+      if (detectedPlatform === 'بوكينج (Booking)') {
+        const childrenParam = url.searchParams.get('group_children') || url.searchParams.get('req_children');
+        if (childrenParam !== null) updates.children = Number(childrenParam);
       }
 
       updates.detectedPlatform = detectedPlatform;
       return updates;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
 
-  useEffect(() => {
-    if (formData.hotelInput && typeof formData.hotelInput === 'string' && formData.hotelInput.trim().startsWith('http')) {
-      const parsed = parseHotelUrl(formData.hotelInput.trim());
-      if (parsed) {
-        setUrlDetails(parsed);
-      }
-    } else {
-      setUrlDetails(null);
-    }
-  }, [formData.hotelInput]);
+  const urlDetails = formData.hotelInput?.trim().startsWith('http') ? parseHotelUrl(formData.hotelInput.trim()) : null;
 
   const handleApplyPastedText = (rawText) => {
     const text = (rawText || '').trim();
@@ -146,13 +142,13 @@ export default function HotelSearchForm({
     let updated = {
       ...formData,
       hotelInput: text,
+      resolvedHotelName: '', resolvedHotelInput: '',
       roomName: '', roomKeywords: [], mealPlan: '',
     };
 
     if (text.startsWith('http')) {
       const parsed = parseHotelUrl(text);
       if (parsed) {
-        setUrlDetails(parsed);
         updated = {
           ...updated,
           ...parsed,
@@ -161,9 +157,7 @@ export default function HotelSearchForm({
     }
 
     if (!updated.checkIn) {
-      const d = new Date();
-      d.setDate(d.getDate() + 1);
-      updated.checkIn = d.toISOString().split('T')[0];
+      updated.checkIn = addDaysToDate(today, 1);
     }
     if (!updated.checkOut) {
       updated.checkOut = addDaysToDate(updated.checkIn, 12);
@@ -172,10 +166,7 @@ export default function HotelSearchForm({
     setFormData(updated);
     setAvailableRooms([]);
     
-    // Automatically fetch rooms if we have Almatar or Almosafer link
-    if (updated.hotelInput?.startsWith('http') && (updated.hotelInput.includes('almatar.com') || updated.hotelInput.includes('almosafer.com'))) {
-      handleFetchRooms(updated);
-    }
+
   };
 
   const handlePasteEvent = (e) => {
@@ -194,36 +185,42 @@ export default function HotelSearchForm({
           handleApplyPastedText(clipText);
         }
       }
-    } catch (err) {}
+    } catch {}
   };
 
-  const handleFetchRooms = async (currentFormData = formData) => {
+  const handleFetchRooms = useCallback(async (currentFormData, refresh = true) => {
     const input = currentFormData.hotelInput || '';
-    const isSupported = input.includes('almatar.com') || input.includes('almosafer.com');
+    const isSupported = input.includes('almatar.com') || input.includes('almosafer.com') || input.includes('booking.com') || /^booking:/i.test(input);
     if (!isSupported) {
-      setRoomsError('يرجى إدخال رابط فندق صالح من المسافر أو المطار');
+      setRoomsError('يرجى إدخال رابط فندق صالح أو معرّف Booking');
       return;
     }
+    roomRequest.current.controller?.abort();
+    const controller = new AbortController();
+    const sequence = ++roomRequest.current.sequence;
+    roomRequest.current.controller = controller;
     setIsFetchingRooms(true);
     setRoomsError('');
     try {
       const data = await fetchHotelRoomsList({
         hotelInput: currentFormData.hotelInput,
-        checkIn: currentFormData.checkIn || new Date().toISOString().split('T')[0],
-        checkOut: addDaysToDate(currentFormData.checkIn || new Date().toISOString().split('T')[0], 1),
+        checkIn: currentFormData.checkIn || today,
+        checkOut: new Date(Date.parse(`${currentFormData.checkIn || today}T12:00:00Z`) + 86400000).toISOString().slice(0,10),
         adults: currentFormData.adults || 2,
+        rooms: currentFormData.rooms || 1,
+        source: currentFormData.sources?.length === 1 ? currentFormData.sources[0] : undefined,
         childAges: currentFormData.childAges || [],
-      });
+        children: currentFormData.children || 0,
+        refresh,
+      }, { signal: controller.signal });
+      if (sequence !== roomRequest.current.sequence || controller.signal.aborted) return;
       if (data && data.success) {
         if (data.hotelName) {
-          setUrlDetails(prev => prev ? ({ ...prev, extractedHotelName: data.hotelName }) : prev);
-          setFormData(prev => ({ ...prev, resolvedHotelName: data.hotelName }));
+          setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input }) : prev);
         }
         if (data.rooms && data.rooms.length > 0) {
           setAvailableRooms(data.rooms);
-          if (!currentFormData.roomKeywords || currentFormData.roomKeywords.length === 0) {
-            setFormData(prev => ({ ...prev, roomKeywords: [data.rooms[0]], roomName: data.rooms[0] }));
-          }
+
         } else {
           setAvailableRooms([]);
           setRoomsError('لا توجد غرف متاحة في هذه التواريخ');
@@ -231,11 +228,31 @@ export default function HotelSearchForm({
       } else {
         setRoomsError(data.message || 'فشل استخراج الغرف');
       }
-    } catch (error) {
-      setRoomsError('تعذر الاتصال بالخادم لجلب الغرف');
+    } catch {
+      if (sequence === roomRequest.current.sequence && !controller.signal.aborted) setRoomsError('تعذر الاتصال بالخادم لجلب الغرف');
+    } finally {
+      if (sequence === roomRequest.current.sequence && !controller.signal.aborted) {
+        setIsFetchingRooms(false);
+        onSourceChecked?.();
+      }
     }
-    setIsFetchingRooms(false);
-  };
+  }, [onSourceChecked, today, setFormData]);
+
+  const roomQuery = useMemo(() => ({ hotelInput: formData.hotelInput, checkIn: formData.checkIn, adults: formData.adults, rooms: formData.rooms, children: formData.children, childAges: formData.childAges || [] }),
+    [formData.hotelInput, formData.checkIn, formData.adults, formData.rooms, formData.children, formData.childAges]);
+  useEffect(() => {
+    const input = roomQuery.hotelInput || '';
+    const control = roomRequest.current;
+    control.controller?.abort(); control.sequence++;
+    const supported = /^booking:[1-9]\d*$/i.test(input) || (() => {
+      try { const host = new URL(input).hostname; return ['almosafer.com', 'almatar.com', 'booking.com'].some(domain => host === domain || host.endsWith(`.${domain}`)); } catch { return false; }
+    })();
+    const timer = setTimeout(() => {
+      setAvailableRooms([]); setRoomsError(''); setIsFetchingRooms(false);
+      if (supported && !roomQuery.childAges.some(age => !Number.isInteger(age))) handleFetchRooms(roomQuery, false);
+    }, 700);
+    return () => { clearTimeout(timer); control.controller?.abort(); control.sequence++; };
+  }, [roomQuery, handleFetchRooms]);
 
   const syncUrlOccupancy = (urlStr, newAdults) => {
     if (!urlStr || typeof urlStr !== 'string' || !urlStr.startsWith('http')) return urlStr;
@@ -253,7 +270,7 @@ export default function HotelSearchForm({
         return u.toString();
       }
       return urlStr;
-    } catch (e) {
+    } catch {
       return urlStr;
     }
   };
@@ -264,21 +281,24 @@ export default function HotelSearchForm({
       [field]: value,
     };
 
-    if (field === 'hotelInput' && typeof value === 'string' && value.trim().startsWith('http')) {
+    if (field === 'hotelInput' && /^booking:/i.test(String(value).trim())) {
+      updated.resolvedHotelName = ''; updated.resolvedHotelInput = '';
+      updated.sources = ['booking'];
+      updated.roomName = ''; updated.roomKeywords = [];
+      setAvailableRooms([]);
+    } else if (field === 'hotelInput' && typeof value === 'string' && value.trim().startsWith('http')) {
+      updated.resolvedHotelName = ''; updated.resolvedHotelInput = '';
       updated.roomName = '';
       updated.roomKeywords = [];
       updated.mealPlan = '';
       setAvailableRooms([]);
       const parsed = parseHotelUrl(value.trim());
       if (parsed) {
-        setUrlDetails(parsed);
         updated = {
           ...updated,
           ...parsed,
         };
-        if (value.includes('almatar.com') || value.includes('almosafer.com')) {
-          handleFetchRooms(updated);
-        }
+
       }
     } else if (field === 'adults' && updated.hotelInput?.startsWith('http')) {
       updated.hotelInput = syncUrlOccupancy(updated.hotelInput, value);
@@ -288,7 +308,7 @@ export default function HotelSearchForm({
   };
 
   const handleQuickDays = (days) => {
-    const baseIn = formData.checkIn || new Date().toISOString().split('T')[0];
+    const baseIn = formData.checkIn || today;
     const newOut = addDaysToDate(baseIn, days);
     const updated = {
       ...formData,
@@ -309,7 +329,7 @@ export default function HotelSearchForm({
       adults: Number(capacity),
     };
     if (!updated.checkIn) {
-      updated.checkIn = new Date().toISOString().split('T')[0];
+      updated.checkIn = today;
     }
     if (!updated.checkOut) {
       updated.checkOut = addDaysToDate(updated.checkIn, 12);
@@ -337,7 +357,7 @@ export default function HotelSearchForm({
     };
     if (field === 'children') updated.childAges = Array.from({length:safeVal},(_,i)=>formData.childAges?.[i] ?? null);
     if (!updated.checkIn) {
-      updated.checkIn = new Date().toISOString().split('T')[0];
+      updated.checkIn = today;
     }
     if (!updated.checkOut) {
       updated.checkOut = addDaysToDate(updated.checkIn, 12);
@@ -366,7 +386,7 @@ export default function HotelSearchForm({
       return;
     }
     if (!targetSearch.checkIn) {
-      targetSearch.checkIn = new Date().toISOString().split('T')[0];
+      targetSearch.checkIn = today;
     }
     if (!targetSearch.checkOut) {
       targetSearch.checkOut = addDaysToDate(targetSearch.checkIn, 12);
@@ -424,7 +444,7 @@ export default function HotelSearchForm({
               value={formData.hotelInput}
               onChange={(e) => handleChange('hotelInput', e.target.value)}
               onPaste={handlePasteEvent}
-              placeholder="اكتب اسم الفندق أو الصق رابط الفندق المباشر من المسافر أو المطار..."
+              placeholder="رابط الفندق من المسافر أو المطار أو Booking، أو booking:184752"
               className="w-full pr-10 pl-3.5 py-2.5 bg-white/60 backdrop-blur-md border border-slate-300/80 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white/95 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-2xs"
             />
           </div>
@@ -455,7 +475,7 @@ export default function HotelSearchForm({
                 <div className="flex items-center gap-1.5">
                   <Building2 className="w-4 h-4 text-blue-600 shrink-0" />
                   <span className="text-slate-500 font-medium">اسم الفندق المستخرج:</span>
-                  <strong className="text-slate-900 font-semibold">{resolvedHotelName || urlDetails.extractedHotelName || formData.hotelInput}</strong>
+                  <strong className="text-slate-900 font-semibold">{resolvedHotelName || (formData.resolvedHotelInput === formData.hotelInput ? formData.resolvedHotelName : '') || urlDetails.extractedHotelName || 'لم يتم التحقق من اسم الفندق بعد'}</strong>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -472,15 +492,15 @@ export default function HotelSearchForm({
 
                 <div className="flex items-center gap-1.5">
                   <Compass className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-slate-500 font-medium">جاهزية المحرك:</span>
-                  <strong className="text-emerald-700 font-semibold">استعلام مباشر وحقيقي عبر API</strong>
+                  <span className="text-slate-500 font-medium">طريقة الاستعلام:</span>
+                  <strong className="text-emerald-700 font-semibold">أسعار من المصدر؛ راجع حالة الاتصال أدناه</strong>
                 </div>
               </div>
             </div>
           )}
           
           {/* Room Selection */}
-          {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com')) && (
+          {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com') || formData.hotelInput?.includes('booking.com') || /^booking:/i.test(formData.hotelInput || '')) && (
             <div className="mt-3 p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-blue-200 shadow-sm animate-fadeIn">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -517,7 +537,7 @@ export default function HotelSearchForm({
                 <div className="flex flex-col items-center justify-center py-6 gap-3">
                   <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                   <p className="text-xs text-slate-500">
-                    يتم جلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : 'المطار'}...
+                    يتم جلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار')}...
                   </p>
                 </div>
               )}
@@ -526,7 +546,7 @@ export default function HotelSearchForm({
                 <div className="flex flex-col items-center justify-center py-5 gap-2 border border-dashed border-blue-200 rounded-xl bg-blue-50/40">
                   <ListFilter className="w-5 h-5 text-blue-300" />
                   <p className="text-xs text-slate-500 text-center">
-                    اضغط على <span className="font-bold text-blue-600">تحديث الغرف</span> لجلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : 'المطار'}
+                    اضغط على <span className="font-bold text-blue-600">تحديث الغرف</span> لجلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار')}
                   </p>
                 </div>
               )}

@@ -22,7 +22,7 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
     return elapsedSeconds >= step.minSec ? idx : curr;
   }, 0);
 
-  const sourcesText = selectedSources.map((s) => (s === 'almosafer' ? 'المسافر' : 'المطار')).join(' و ') || 'المسافر والمطار';
+  const sourcesText = selectedSources.map((s) => ({ almosafer: 'المسافر', almatar: 'المطار', booking: 'بوكينج' })[s] || s).join(' و ') || 'المصادر المحددة';
 
   return (
     <div className="bg-white/85 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-xl shadow-slate-950/5 p-8 sm:p-10 text-center max-w-2xl mx-auto">

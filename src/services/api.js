@@ -54,7 +54,7 @@ export async function startHotelPriceSearch(searchData, onProgress) {
                 } else if (payload.type === 'error') {
                   return { success: false, message: payload.message || 'فشل استخراج الأسعار' };
                 }
-              } catch (e) {}
+              } catch {}
             }
           }
         }
@@ -66,7 +66,7 @@ export async function startHotelPriceSearch(searchData, onProgress) {
 
     const result = await response.json();
     if (!result || result.success === false) {
-      return { success: false, message: result?.error || result?.message || 'فشل استخراج الأسعار من المسافر' };
+      return { success: false, message: result?.error || result?.message || 'فشل استخراج الأسعار من المصدر' };
     }
     return result;
   } catch (error) {
@@ -150,7 +150,7 @@ export async function startDailyPricesSearch(searchData, onProgress) {
                 } else if (payload.type === 'error') {
                   return { success: false, message: payload.message || 'فشل استخراج الأسعار اليومية' };
                 }
-              } catch (e) {}
+              } catch {}
             }
           }
         }
@@ -185,11 +185,11 @@ export async function getSystemStatus() {
     if(!response.ok) throw new Error('offline');
     return await response.json();
   } catch {
-    return {almosafer:'offline',almatar:'offline',excelExport:'ready',lastSearch:'الخادم غير متصل',activeProxies:0,errors:['تعذر الاتصال بالخادم']};
+    return {almosafer:'offline',almatar:'offline',booking:'offline',excelExport:'ready',lastSearch:'الخادم غير متصل',activeProxies:0,errors:['تعذر الاتصال بالخادم']};
   } finally {clearTimeout(timer);}
 }
 
-export async function fetchHotelRoomsList(searchData) {
+export async function fetchHotelRoomsList(searchData, { signal } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
   try {
@@ -201,13 +201,17 @@ export async function fetchHotelRoomsList(searchData) {
         checkIn: searchData.checkIn,
         checkOut: searchData.checkOut,
         adults: searchData.adults || 2,
+        rooms: searchData.rooms || 1,
+        source: searchData.source,
+        children: searchData.children ?? (searchData.childAges || []).length,
+        refresh: Boolean(searchData.refresh),
         childAges: searchData.childAges || [],
       }),
-      signal: controller.signal,
+      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
     });
     const result = await response.json();
     if (!response.ok || result.success === false)
-      return { success: false, message: result.message || 'فشل استخراج الغرف' };
+      return { success: false, message: result.message || 'فشل استخراج الغرف', code: result.code, diagnosticId: result.diagnosticId };
     return result;
   } catch (error) {
     return {
