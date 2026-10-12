@@ -10,10 +10,61 @@ export function searchContextKey(params) {
     mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true});
 }
 
+export function normalizeArabic(value) {
+  if (!value) return '';
+  return String(value)
+    .normalize('NFKC')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[\-–—_,/\\()[\]{}،.:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function roomNameMatches(candidateName, targetRoomName) {
+  if (!targetRoomName) return true;
+  if (!candidateName) return false;
+  const cNorm = normalizeArabic(candidateName);
+  const tNorm = normalizeArabic(targetRoomName);
+  if (!cNorm || !tNorm) return false;
+  if (cNorm === tNorm) return true;
+  if (cNorm.includes(tNorm) || tNorm.includes(cNorm)) return true;
+  const stopWords = new Set(['في', 'من', 'على', 'مع', 'أو', 'او', 'عبر', 'الى', 'إلى', 'و']);
+  const tWords = tNorm.split(' ').filter(w => w.length > 1 && !stopWords.has(w));
+  if (tWords.length > 0 && tWords.every(w => cNorm.includes(w))) return true;
+  const cWords = cNorm.split(' ').filter(w => w.length > 1 && !stopWords.has(w));
+  if (cWords.length > 0 && cWords.every(w => tNorm.includes(w))) return true;
+  return false;
+}
+
 export function roomForSearch(results,params,summary) {
-  const requested=params?.roomName || params?.roomKeywords?.[0];
-  return (requested && results.find(room=>room.roomName===requested)) ||
-    results.find(room=>room.roomName===summary?.almosaferRoom && (!summary?.source || room.source===summary.source)) || results[0];
+  if (!results || !results.length) return null;
+  const requested = params?.roomName || params?.roomKeywords?.[0];
+  const availCount = r => Math.max(0, ...['roomOnly','breakfast','halfBoard'].flatMap(plan => [
+    r[`${plan}DirectAvailableNights`] ?? r[`${plan}AvailableNights`] ?? 0,
+    r[`${plan}FlexibleDirectAvailableNights`] ?? r[`${plan}FlexibleAvailableNights`] ?? 0
+  ]));
+
+  if (requested) {
+    const matches = results.filter(room => roomNameMatches(room.roomName, requested));
+    if (matches.length > 0) {
+      matches.sort((a, b) => availCount(b) - availCount(a));
+      return matches[0];
+    }
+  }
+
+  const summaryMatches = results.filter(room => room.roomName === summary?.almosaferRoom && (!summary?.source || room.source === summary.source));
+  if (summaryMatches.length > 0) {
+    summaryMatches.sort((a, b) => availCount(b) - availCount(a));
+    return summaryMatches[0];
+  }
+
+  const sorted = [...results].sort((a, b) => availCount(b) - availCount(a));
+  return sorted[0];
 }
 
 export function priceParts(offer, total = offer?.price) {
@@ -108,8 +159,8 @@ export function summaryForRoom(summary,room) {
       alternativeRoomName:rate?.alternativeRoomName || null
     };
     fields.forEach(field=>{
-      day[`almosafer${title(field)}`]=rate?.[`${field}Price`] ?? null;
-      day[`almosafer${title(field)}IsAlternative`]=rate?.[`${field}IsAlternative`] || false;
+      day[`almosafer${title(field)}`]=rate?.[`${field}Price`] ?? rate?.[`alternative${title(field)}Price`] ?? null;
+      day[`almosafer${title(field)}IsAlternative`]=rate?.[`${field}IsAlternative`] || Boolean(!rate?.[`${field}Price`] && rate?.[`alternative${title(field)}Price`]);
     });
     for(const plan of ['Breakfast','HalfBoard']) {
       const price=day[`almosafer${plan}`],ro=day.almosaferRoomOnly;
