@@ -19,11 +19,13 @@ export default function Header({ systemReady, onRefreshStatus }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/70 backdrop-blur-md border border-slate-200/60 text-slate-700 text-xs font-semibold shadow-2xs">
             <span>العملة الافتراضية:</span>
             <span className="text-blue-600 font-bold">ريال سعودي (SAR)</span>
           </div>
+
+          <span className="text-xs text-slate-600" title="أسعار الحساب وخصومات Genius تحتاج تسجيل دخول موثق من Booking">ربط حساب Booking غير متاح حاليًا</span>
 
           <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full backdrop-blur-md border text-xs font-bold shadow-2xs ${systemReady ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
             <span className={`w-2 h-2 rounded-full ${systemReady ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
