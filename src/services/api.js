@@ -206,6 +206,39 @@ export async function getSystemStatus() {
   } finally {clearTimeout(timer);}
 }
 
+export async function requestBookingOtp(email) {
+  const res = await fetch(`${API_BASE_URL}/booking-request-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return res.json();
+}
+
+export async function verifyBookingOtp(email, code) {
+  const res = await fetch(`${API_BASE_URL}/booking-verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  return res.json();
+}
+
+export async function disconnectBookingAccount() {
+  const res = await fetch(`${API_BASE_URL}/booking-disconnect`, { method: 'POST' });
+  return res.json();
+}
+
+export async function getBookingSession() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/booking-session`);
+    if (!res.ok) return { connected: false, email: null };
+    return res.json();
+  } catch {
+    return { connected: false, email: null };
+  }
+}
+
 export async function fetchHotelRoomsList(searchData, { signal } = {}) {
   const controller = new AbortController();
   const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;

@@ -148,11 +148,22 @@ export default function HotelSearchForm({
     }
   };
 
-  const urlDetails = formData.hotelInput?.trim().startsWith('http') ? parseHotelUrl(formData.hotelInput.trim()) : null;
+  const normalizedHotelInput = useMemo(() => {
+    let text = (formData.hotelInput || '').trim();
+    if (!text.startsWith('http://') && !text.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(text)) {
+      return 'https://' + text;
+    }
+    return text;
+  }, [formData.hotelInput]);
+
+  const urlDetails = normalizedHotelInput.startsWith('http') ? parseHotelUrl(normalizedHotelInput) : null;
 
   const handleApplyPastedText = (rawText) => {
-    const text = (rawText || '').trim();
+    let text = (rawText || '').trim();
     if (!text) return;
+    if (!text.startsWith('http://') && !text.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(text)) {
+      text = 'https://' + text;
+    }
 
     let updated = {
       ...formData,
@@ -186,8 +197,6 @@ export default function HotelSearchForm({
     }
 
     setFormData(updated);
-    
-
   };
 
   const handlePasteEvent = (e) => {
@@ -210,7 +219,10 @@ export default function HotelSearchForm({
   };
 
   const handleFetchRooms = useCallback(async (currentFormData, refresh = true) => {
-    const input = currentFormData.hotelInput || '';
+    let input = (currentFormData.hotelInput || '').trim();
+    if (!input.startsWith('http://') && !input.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(input)) {
+      input = 'https://' + input;
+    }
     const isSupported = input.includes('almatar.com') || input.includes('almosafer.com') || input.includes('booking.com') || /^booking:/i.test(input);
     if (!isSupported) {
       setRoomsError('يرجى إدخال رابط فندق صالح أو معرّف Booking');
@@ -223,13 +235,14 @@ export default function HotelSearchForm({
     setIsFetchingRooms(true);
     setRoomsError('');
     try {
+      const isBookingInput = input.includes('booking.com') || /^booking:/i.test(input);
       const data = await fetchHotelRoomsList({
-        hotelInput: currentFormData.hotelInput,
+        hotelInput: input,
         checkIn: currentFormData.checkIn || today,
         checkOut: new Date(Date.parse(`${currentFormData.checkIn || today}T12:00:00Z`) + 86400000).toISOString().slice(0,10),
         adults: currentFormData.adults || 2,
         rooms: currentFormData.rooms || 1,
-        source: currentFormData.sources?.length === 1 ? currentFormData.sources[0] : undefined,
+        source: isBookingInput ? 'booking' : (currentFormData.sources?.length === 1 ? currentFormData.sources[0] : undefined),
         childAges: currentFormData.childAges || [],
         children: currentFormData.children || 0,
         refresh,
@@ -411,9 +424,17 @@ export default function HotelSearchForm({
     e.preventDefault();
 
     let targetSearch = { ...formData };
-    if (!targetSearch.hotelInput?.trim()) {
+    let input = (targetSearch.hotelInput || '').trim();
+    if (!input) {
       setRoomsError('يرجى إدخال اسم الفندق أو لصق الرابط المباشر للبدء');
       return;
+    }
+    if (!input.startsWith('http://') && !input.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(input)) {
+      input = 'https://' + input;
+      targetSearch.hotelInput = input;
+    }
+    if (input.includes('booking.com') || /^booking:/i.test(input)) {
+      targetSearch.sources = ['booking'];
     }
     if (!targetSearch.checkIn) {
       targetSearch.checkIn = today;

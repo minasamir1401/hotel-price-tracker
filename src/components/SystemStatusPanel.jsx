@@ -106,10 +106,10 @@ export default function SystemStatusPanel({ status }) {
       {status.sourceDetails?.almosafer?.sessionHandoff?.directAfterBootstrap && (
         <div className="mt-3 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900">
           {status.sourceDetails.almosafer.sessionHandoff.state === 'direct'
-            ? 'المسافر: الأسعار باتصال مباشر؛ Bright Data لتهيئة الجلسة فقط.'
+            ? 'المسافر: الأسعار باتصال مباشر؛ المتصفح البعيد لتهيئة الجلسة فقط.'
             : status.sourceDetails.almosafer.sessionHandoff.state === 'browser'
-              ? 'المسافر: الاتصال المباشر لم ينجح؛ طلبات الأسعار تستخدم Bright Data وتستهلك بيانات الخدمة.'
-              : 'المسافر: سيتم اختبار الاتصال المباشر بعد تهيئة الجلسة عبر Bright Data.'}
+              ? 'المسافر: الاتصال المباشر لم ينجح؛ طلبات الأسعار تستخدم المتصفح البعيد.'
+              : 'المسافر: سيتم اختبار الاتصال المباشر بعد تهيئة الجلسة عبر المتصفح البعيد.'}
         </div>
       )}
 
