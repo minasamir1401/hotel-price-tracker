@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {startHotelPriceSearch} from '../src/services/api.js';
+import {startHotelPriceSearch, startDailyPricesSearch} from '../src/services/api.js';
+import {runPriceSearch} from '../src/services/searchTransport.js';
 
 const jobId='00000000-0000-4000-8000-000000000001';
 const month={hotelInput:'hotel',checkIn:'2026-10-20',checkOut:'2026-11-19',sources:['almosafer']};
@@ -35,4 +36,116 @@ test('Background failure returns its source diagnostics and legacy JSON remains 
     globalThis.fetch=async()=>({ok:true,status:200,headers:new Headers({'content-type':'application/json'}),json:async()=>({success:true,data:[]})});
     assert.deepEqual(await startHotelPriceSearch(month),{success:true,data:[]});
   }finally{globalThis.fetch=saved;}
+});
+
+test('Almatar daily prices use a short background submission and retain exact room, dates and occupancy', async () => {
+  const saved = globalThis.fetch, progress = [], requests = [];
+  const input = { ...month, adults: 3, rooms: 2, childAges: [7], roomName: 'Twin',
+    roomKeywords: ['Twin'], mealPlan: 'breakfast', bedCount: 2, bedType: 'single', includeUnknownBeds: true };
+  const result = { success: true, rows: [{ date: month.checkIn, breakfast: '1115.00', offers: { breakfast: { packageId: 'source-package' } } }] };
+  try {
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url, options });
+      return Response.json(options.method === 'POST' ? { jobId } : { status: 'completed', progress: { completed: 30, total: 30 }, result },
+        { status: options.method === 'POST' ? 202 : 200 });
+    };
+    assert.deepEqual(await startDailyPricesSearch(input, p => progress.push(p)), result);
+    assert.equal(requests[0].url, '/api/daily-prices');
+    const body = JSON.parse(requests[0].options.body);
+    assert.equal(body.background, true);
+    for (const key of ['hotelInput', 'checkIn', 'checkOut', 'adults', 'rooms', 'childAges', 'roomName', 'roomKeywords', 'mealPlan', 'bedCount', 'bedType', 'includeUnknownBeds'])
+      assert.deepEqual(body[key], input[key]);
+    assert.equal(requests[1].options.cache, 'no-store');
+    assert.equal(progress[0].jobId, jobId);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('Temporary network, gateway HTML and incomplete JSON polling failures resume the SAME daily job', async () => {
+  const saved = globalThis.fetch, requests = [], result = { success: true, rows: [{ breakfast: '123.00' }] };
+  let polls = 0;
+  try {
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url, options });
+      if (options.method === 'POST') return Response.json({ jobId }, { status: 202 });
+      assert.equal(url, `/api/search-jobs/${jobId}`);
+      polls++;
+      if (polls === 1) throw new TypeError('Failed to fetch');
+      if (polls === 2) return new Response('<html>Bad gateway</html>', { status: 502 });
+      if (polls === 3) return new Response('{"status":');
+      return Response.json({ status: 'completed', result });
+    };
+    assert.deepEqual(await startDailyPricesSearch(month), result);
+    assert.equal(requests.filter(r => r.options.method === 'POST').length, 1);
+    assert.equal(polls, 4);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('A lost submission response resends identical input so the server can deduplicate work', async () => {
+  const saved = globalThis.fetch, bodies = [];
+  try {
+    globalThis.fetch = async (_url, options) => {
+      if (options.method === 'POST') {
+        bodies.push(options.body);
+        if (bodies.length === 1) throw new TypeError('Connection reset after server accepted job');
+        return Response.json({ jobId }, { status: 202 });
+      }
+      return Response.json({ status: 'completed', result: { success: true, rows: [] } });
+    };
+    assert.equal((await startDailyPricesSearch(month)).success, true);
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0], bodies[1]);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('Expired tasks and invalid input are reported without restarting work or losing diagnostics', async () => {
+  const saved = globalThis.fetch;
+  let requests = 0;
+  try {
+    globalThis.fetch = async (_url, options) => {
+      requests++;
+      return options.method === 'POST' ? Response.json({ jobId }, { status: 202 })
+        : Response.json({ message: 'المهمة غير موجودة أو انتهت صلاحيتها' }, { status: 404 });
+    };
+    const expired = await startDailyPricesSearch(month);
+    assert.equal(expired.success, false);
+    assert.equal(expired.jobId, jobId);
+    assert.match(expired.message, /انتهت صلاحيتها/);
+    assert.equal(requests, 2);
+    requests = 0;
+    globalThis.fetch = async () => {
+      requests++;
+      return Response.json({ message: 'Invalid dates', code: 'INVALID_DATES', diagnosticId: 'ref' }, { status: 400 });
+    };
+    const invalid = await startDailyPricesSearch(month);
+    assert.equal(invalid.message, 'Invalid dates');
+    assert.equal(invalid.code, 'INVALID_DATES');
+    assert.equal(invalid.diagnosticId, 'ref');
+    assert.equal(requests, 1);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('The overall deadline aborts an unresponsive poll and retains the job reference', async () => {
+  const saved = globalThis.fetch;
+  try {
+    globalThis.fetch = async (_url, options) => {
+      if (options.method === 'POST') return Response.json({ jobId }, { status: 202 });
+      return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true }));
+    };
+    const result = await runPriceSearch({ apiBase: '/api', endpoint: 'daily-prices', payload: month, timeoutMs: 30 });
+    assert.equal(result.success, false);
+    assert.equal(result.jobId, jobId);
+    assert.match(result.message, /انتهت مهلة/);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('Legacy streams support CRLF and a final result without a trailing blank line', async () => {
+  const saved = globalThis.fetch, progress = [];
+  const result = { success: true, rows: [{ breakfast: '1115.00' }] };
+  try {
+    globalThis.fetch = async () => new Response(`: ping\r\n\r\ndata: ${JSON.stringify({ type: 'progress', completed: 1 })}\r\n\r\ndata: ${JSON.stringify({ type: 'done', result })}`, {
+      headers: { 'content-type': 'text/event-stream' },
+    });
+    assert.deepEqual(await startDailyPricesSearch(month, p => progress.push(p)), result);
+    assert.equal(progress[0].completed, 1);
+  } finally { globalThis.fetch = saved; }
 });
