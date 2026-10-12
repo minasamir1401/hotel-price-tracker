@@ -696,6 +696,7 @@ export default function HotelSearchForm({
               { label: '7 أيام (أسبوع)', days: 7 },
               { label: '12 يوماً (12 ليالٍ)', days: 12 },
               { label: '14 يوماً (أسبوعين)', days: 14 },
+              { label: '30 يوماً (مهمة واحدة)', days: 30 },
               { label: 'شهر كامل (31 يوماً)', days: 31 },
             ].map((preset) => {
               const isActive = currentNights === preset.days;

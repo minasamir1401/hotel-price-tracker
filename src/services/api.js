@@ -3,14 +3,15 @@ export async function startHotelPriceSearch(searchData, onProgress) {
   const controller = new AbortController();
   const nights = Math.max(1, Math.min(62, Math.ceil((Date.parse(searchData.checkOut) - Date.parse(searchData.checkIn)) / 86400000) || 31));
   const timer = setTimeout(() => controller.abort(), 60000 + Math.ceil(nights / 4) * 90000 + Math.ceil(nights / 2) * 45000);
+  let activeJobId = null;
   try {
     const response = await fetch(`${API_BASE_URL}/search-hotel-prices`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'text/event-stream, application/json',
+        'Accept': 'application/json',
       },
-      body: JSON.stringify({ ...searchData, refresh: true }),
+      body: JSON.stringify({ ...searchData, refresh: true, background: true }),
       signal: controller.signal,
     });
 
@@ -24,6 +25,21 @@ export async function startHotelPriceSearch(searchData, onProgress) {
       }
     }
 
+    if(response.status===202) {
+      const job=await response.json();
+      if(!/^[a-f0-9-]{36}$/i.test(job.jobId||''))throw new Error('الخادم لم يرجع معرف مهمة صالحًا');
+      activeJobId=job.jobId;
+      while(!controller.signal.aborted) {
+        const poll=await fetch(`${API_BASE_URL}/search-jobs/${encodeURIComponent(job.jobId)}`,{signal:controller.signal});
+        const state=await poll.json();
+        if(!poll.ok)return {success:false,message:state.message||'تعذر متابعة المهمة'};
+        onProgress?.({...state.progress,jobId:job.jobId});
+        if(state.status==='completed')return state.result;
+        if(state.status==='failed')return {success:false,...state.error};
+        await new Promise(resolve=>setTimeout(resolve,1500));
+      }
+      return {success:false,message:'انتهت مهلة متابعة المهمة؛ قد يظل السحب جاريًا على الخادم'};
+    }
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('text/event-stream') && response.body) {
       const reader = response.body.getReader();
@@ -72,9 +88,10 @@ export async function startHotelPriceSearch(searchData, onProgress) {
   } catch (error) {
     return {
       success: false,
+      ...(activeJobId ? {jobId:activeJobId} : {}),
       message: error.name === 'AbortError'
-        ? 'انتهت مهلة البحث؛ أعد المحاولة أو اختر مدة أقصر.'
-        : 'تعذر الاتصال بالخادم. شغّل الخادم وأعد البحث.',
+        ? (activeJobId ? 'انتهت مهلة متابعة المهمة؛ قد يظل السحب جاريًا على الخادم.' : 'انتهت مهلة البحث؛ أعد المحاولة أو اختر مدة أقصر.')
+        : (activeJobId ? 'انقطع اتصال متابعة المهمة؛ السحب يستمر على الخادم. إعادة نفس البحث تستكمل متابعة المهمة الحالية.' : 'تعذر الاتصال بالخادم. شغّل الخادم وأعد البحث.'),
     };
   } finally {
     clearTimeout(timer);
@@ -191,7 +208,8 @@ export async function getSystemStatus() {
 
 export async function fetchHotelRoomsList(searchData, { signal } = {}) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
+  const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;
+  const timer = setTimeout(() => controller.abort(), startupTimeout);
   try {
     const response = await fetch(`${API_BASE_URL}/hotel-rooms-list`, {
       method: 'POST',
