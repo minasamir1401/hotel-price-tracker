@@ -98,99 +98,109 @@ export async function startHotelPriceSearch(searchData, onProgress) {
   }
 }
 
-export async function startDailyPricesSearch(searchData, onProgress) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 600000);
+export async function startDailyPricesSearch(searchData, onProgress, maxAttempts = 2) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 600000);
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/daily-prices`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream',
-      },
-      body: JSON.stringify({
-        hotelInput: searchData.hotelInput,
-        checkIn: searchData.checkIn,
-        checkOut: searchData.checkOut,
-        adults: searchData.adults || 2,
-        childAges: searchData.childAges || [],
-        roomKeywords: searchData.roomKeywords || [],
-        concurrency: searchData.concurrency || 4,
-        rooms: searchData.rooms || 1,
-        roomName: searchData.roomName || '',
-        bedCount: searchData.bedCount || 0,
-        bedType: searchData.bedType || 'any',
-        includeUnknownBeds: Boolean(searchData.includeUnknownBeds),
-        mealPlan: searchData.mealPlan || '',
-      }),
-      signal: controller.signal,
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/daily-prices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
+          hotelInput: searchData.hotelInput,
+          checkIn: searchData.checkIn,
+          checkOut: searchData.checkOut,
+          adults: searchData.adults || 2,
+          childAges: searchData.childAges || [],
+          roomKeywords: searchData.roomKeywords || [],
+          concurrency: searchData.concurrency || 4,
+          rooms: searchData.rooms || 1,
+          roomName: searchData.roomName || '',
+          bedCount: searchData.bedCount || 0,
+          bedType: searchData.bedType || 'any',
+          includeUnknownBeds: Boolean(searchData.includeUnknownBeds),
+          mealPlan: searchData.mealPlan || '',
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      try {
-        const parsed = JSON.parse(errText);
-        return { success: false, message: parsed.message || 'فشل استخراج الأسعار اليومية' };
-      } catch {
-        return { success: false, message: errText || `خطأ الخادم ${response.status}` };
-      }
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    if (contentType.includes('text/event-stream') && response.body) {
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalResult = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop() || '';
-
-        for (const block of blocks) {
-          const trimmed = block.trim();
-          if (!trimmed || trimmed.startsWith(':')) continue;
-
-          for (const line of trimmed.split('\n')) {
-            if (line.startsWith('data: ')) {
-              try {
-                const payload = JSON.parse(line.slice(6));
-                if (payload.type === 'progress') {
-                  if (typeof onProgress === 'function') onProgress(payload);
-                } else if (payload.type === 'done') {
-                  finalResult = payload.result;
-                } else if (payload.type === 'error') {
-                  return { success: false, message: payload.message || 'فشل استخراج الأسعار اليومية' };
-                }
-              } catch {}
-            }
-          }
+      if (!response.ok) {
+        const errText = await response.text();
+        try {
+          const parsed = JSON.parse(errText);
+          return { success: false, message: parsed.message || 'فشل استخراج الأسعار اليومية' };
+        } catch {
+          return { success: false, message: errText || `خطأ الخادم ${response.status}` };
         }
       }
 
-      if (finalResult) return finalResult;
-      return { success: false, message: 'انقطع الاتصال قبل اكتمال السحب؛ يرجى إعادة المحاولة' };
-    }
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult = null;
 
-    const result = await response.json();
-    if (!result || result.success === false) {
-      return { success: false, message: result?.message || 'فشل استخراج الأسعار اليومية' };
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const blocks = buffer.split('\n\n');
+          buffer = blocks.pop() || '';
+
+          for (const block of blocks) {
+            const trimmed = block.trim();
+            if (!trimmed || trimmed.startsWith(':')) continue;
+
+            for (const line of trimmed.split('\n')) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const payload = JSON.parse(line.slice(6));
+                  if (payload.type === 'progress') {
+                    if (typeof onProgress === 'function') onProgress(payload);
+                  } else if (payload.type === 'done') {
+                    finalResult = payload.result;
+                  } else if (payload.type === 'error') {
+                    return { success: false, message: payload.message || 'فشل استخراج الأسعار اليومية' };
+                  }
+                } catch {}
+              }
+            }
+          }
+        }
+
+        if (finalResult) return finalResult;
+        if (attempt < maxAttempts) {
+          await new Promise(r => setTimeout(r, 1000));
+          continue;
+        }
+        return { success: false, message: 'انقطع الاتصال قبل اكتمال السحب؛ يرجى إعادة المحاولة' };
+      }
+
+      const result = await response.json();
+      if (!result || result.success === false) {
+        return { success: false, message: result?.message || 'فشل استخراج الأسعار اليومية' };
+      }
+      return result;
+    } catch (error) {
+      if (attempt < maxAttempts && error.name !== 'AbortError') {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+      return {
+        success: false,
+        message: error.name === 'AbortError'
+          ? 'انتهت مهلة البحث المحددة؛ يرجى إعادة المحاولة.'
+          : (error.message ? `تعذر الاتصال بالخادم أثناء عملية السحب: ${error.message}` : 'تعذر الاتصال بالخادم أثناء عملية السحب.'),
+      };
+    } finally {
+      clearTimeout(timer);
     }
-    return result;
-  } catch (error) {
-    return {
-      success: false,
-      message: error.name === 'AbortError'
-        ? 'انتهت مهلة البحث المحددة؛ يرجى إعادة المحاولة.'
-        : 'تعذر الاتصال بالخادم أثناء عملية السحب.',
-    };
-  } finally {
-    clearTimeout(timer);
   }
 }
 
