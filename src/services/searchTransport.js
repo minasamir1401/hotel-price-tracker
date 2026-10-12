@@ -13,6 +13,7 @@ function wait(ms, signal) {
 // server; polling always keeps the original job rather than restarting scraping.
 async function request(url, options, signal, attempts, timeoutMs) {
   for (let attempt = 0; attempt < attempts; attempt++) {
+    signal.throwIfAborted();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -67,14 +68,17 @@ async function readStream(response, onProgress) {
   return result || { success: false, message: 'انقطع الاتصال قبل اكتمال السحب؛ يرجى إعادة المحاولة.' };
 }
 
-export async function runPriceSearch({ apiBase, endpoint, payload, onProgress, timeoutMs, submissionAttempts = 2 }) {
+export async function runPriceSearch({ apiBase, endpoint, payload, onProgress, timeoutMs, submissionAttempts = 2, signal }) {
   const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let jobId;
   try {
     const { response, data } = await request(`${apiBase}/${endpoint}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ ...payload, background: true }),
+      body: JSON.stringify({ ...payload, background: true, requestId: payload.requestId || crypto.randomUUID() }),
     }, controller.signal, submissionAttempts, 30000);
     if (response.status !== 202) {
       if (!data && response.body) return await readStream(response, onProgress);
@@ -101,5 +105,5 @@ export async function runPriceSearch({ apiBase, endpoint, payload, onProgress, t
         : error.retryable !== undefined ? error.message
         : (jobId ? 'تعذر استعادة اتصال متابعة البحث؛ أعد نفس البحث لاستكمال متابعة المهمة.' : 'تعذر الاتصال بالخادم أثناء عملية السحب؛ يرجى إعادة المحاولة.'),
     };
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }

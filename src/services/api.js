@@ -67,38 +67,13 @@ export async function getBookingSession() {
 }
 
 export async function fetchHotelRoomsList(searchData, { signal } = {}) {
-  const controller = new AbortController();
   const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;
-  const timer = setTimeout(() => controller.abort(), startupTimeout);
-  try {
-    const response = await fetch(`${API_BASE_URL}/hotel-rooms-list`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        hotelInput: searchData.hotelInput,
-        checkIn: searchData.checkIn,
-        checkOut: searchData.checkOut,
-        adults: searchData.adults || 2,
-        rooms: searchData.rooms || 1,
-        source: searchData.source,
-        children: searchData.children ?? (searchData.childAges || []).length,
-        refresh: Boolean(searchData.refresh),
-        childAges: searchData.childAges || [],
-      }),
-      signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
-    });
-    const result = await response.json();
-    if (!response.ok || result.success === false)
-      return { success: false, message: result.message || 'فشل استخراج الغرف', code: result.code, diagnosticId: result.diagnosticId };
-    return result;
-  } catch (error) {
-    return {
-      success: false,
-      message: error.name === 'AbortError'
-        ? 'انتهت مهلة استخراج الغرف.'
-        : 'تعذر الاتصال بالخادم.',
-    };
-  } finally {
-    clearTimeout(timer);
-  }
+  return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, timeoutMs: startupTimeout,
+    payload: {
+      hotelInput: searchData.hotelInput, checkIn: searchData.checkIn, checkOut: searchData.checkOut,
+      adults: searchData.adults ?? 2, rooms: searchData.rooms ?? 1, source: searchData.source,
+      children: searchData.children ?? (searchData.childAges || []).length,
+      refresh: Boolean(searchData.refresh), childAges: searchData.childAges || [],
+    },
+  });
 }

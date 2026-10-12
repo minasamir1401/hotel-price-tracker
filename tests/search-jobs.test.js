@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {startHotelPriceSearch, startDailyPricesSearch} from '../src/services/api.js';
+import {startHotelPriceSearch, startDailyPricesSearch, fetchHotelRoomsList} from '../src/services/api.js';
 import {runPriceSearch} from '../src/services/searchTransport.js';
 
 const jobId='00000000-0000-4000-8000-000000000001';
@@ -147,5 +147,55 @@ test('Legacy streams support CRLF and a final result without a trailing blank li
     });
     assert.deepEqual(await startDailyPricesSearch(month, p => progress.push(p)), result);
     assert.equal(progress[0].completed, 1);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('Room loading resumes the same background job after a gateway failure and preserves hotel and occupancy', async () => {
+  const saved = globalThis.fetch, requests = [];
+  let polls = 0;
+  const result = { success: true, hotelId: '1441222', rooms: ['Superior Twin'] };
+  try {
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url, options });
+      if (options.method === 'POST') return Response.json({ jobId }, { status: 202 });
+      if (++polls === 1) return new Response('Bad gateway', { status: 502 });
+      return Response.json({ status: 'completed', result });
+    };
+    assert.deepEqual(await fetchHotelRoomsList({ hotelInput: 'https://www.almosafer.com/ar/hotel/details/atg/hotel-1441222',
+      checkIn: '2027-02-08', checkOut: '2027-02-09', source: 'almosafer', rooms: 2, adults: 3, children: 1, childAges: [7] }), result);
+    const body = JSON.parse(requests[0].options.body);
+    assert.equal(body.background, true);
+    assert.equal(body.rooms, 2); assert.equal(body.adults, 3); assert.deepEqual(body.childAges, [7]);
+    assert.equal(requests[0].url, '/api/hotel-rooms-list');
+    assert.equal(requests.filter(r => r.options.method === 'POST').length, 1);
+    assert.equal(requests[1].url, requests[2].url);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('Changing the room request aborts polling and does not submit a cancelled request', async () => {
+  const saved = globalThis.fetch, controller = new AbortController();
+  let requests = 0;
+  controller.abort();
+  try {
+    globalThis.fetch = async () => { requests++; throw new Error('Must not request'); };
+    assert.equal((await fetchHotelRoomsList(month, { signal: controller.signal })).success, false);
+    assert.equal(requests, 0);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('A new search click has a new request ID; retrying the same submission keeps its original ID', async () => {
+  const saved = globalThis.fetch, ids = [];
+  try {
+    globalThis.fetch = async (_url, options) => {
+      if (options.method === 'POST') {
+        ids.push(JSON.parse(options.body).requestId);
+        return Response.json({ jobId }, { status: 202 });
+      }
+      return Response.json({ status: 'completed', result: { success: true, data: [] } });
+    };
+    await startHotelPriceSearch(month);
+    await startHotelPriceSearch(month);
+    assert.match(ids[0], /^[a-f0-9-]{36}$/i);
+    assert.notEqual(ids[0], ids[1]);
   } finally { globalThis.fetch = saved; }
 });
