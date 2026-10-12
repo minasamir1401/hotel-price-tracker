@@ -1,7 +1,10 @@
 import { money, priceParts } from '../services/rates';
+import {formatSourceConditions} from '../services/sourceConditions.js';
 
 export default function PriceBreakdown({total,offer,parts,showPolicy=false}) {
   const breakdown = parts || priceParts(offer,total);
+  const paymentDetails=formatSourceConditions(offer?.paymentDetails);
+  const cancellationDetails=formatSourceConditions(offer?.cancellationDetails);
   if(total==null) return <span>غير متاح</span>;
   return <div className="min-w-44 space-y-1">
     {breakdown ? <>
@@ -23,7 +26,7 @@ export default function PriceBreakdown({total,offer,parts,showPolicy=false}) {
       {offer.noPrepayment && <p className="text-emerald-700">بدون دفع مسبق — الدفع أثناء الإقامة</p>}
       {offer.paymentLabel ? <p dir="auto">{offer.paymentLabel}</p> : offer.paymentType==='full_prepayment' && <p>دفع مسبق لكامل المبلغ حسب شروط العرض</p>}
       {offer.reschedulePolicy && <p dir="auto">{offer.reschedulePolicy}</p>}
-      {(offer.paymentDetails || offer.cancellationDetails) && <details><summary className="cursor-pointer">تفصيل شروط الدفع والإلغاء من المصدر</summary>{offer.paymentDetails && <p dir="auto">{offer.paymentDetails}</p>}{offer.cancellationDetails && <p dir="auto">{offer.cancellationDetails}</p>}</details>}
+      {(paymentDetails || cancellationDetails) && <details><summary className="cursor-pointer">تفصيل شروط الدفع والإلغاء من المصدر</summary>{paymentDetails && <p dir="auto">{paymentDetails}</p>}{cancellationDetails && <p dir="auto">{cancellationDetails}</p>}</details>}
       {offer.noCreditCard && <p className="text-emerald-700">لا تحتاج بطاقة ائتمانية</p>}
       {offer.capacityAdults>0 && <p>سعة العرض: {offer.capacityAdults} بالغين</p>}
       {offer.roomsLeft!=null && <p>المتبقي من العرض: {offer.roomsLeft} غرفة</p>}
