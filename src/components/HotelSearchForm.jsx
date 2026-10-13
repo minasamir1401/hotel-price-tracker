@@ -73,12 +73,15 @@ export default function HotelSearchForm({
       } else if (url.hostname === 'booking.com' || url.hostname.endsWith('.booking.com')) {
         updates.sources = ['booking'];
         detectedPlatform = 'بوكينج (Booking)';
+      } else if (['nusuk.almatar.com', 'apiout.almatar.com'].includes(url.hostname)) {
+        updates.sources = ['nusuk'];
+        detectedPlatform = 'نسك (Nusuk)';
       } else if ((url.hostname === 'almatar.com' || url.hostname.endsWith('.almatar.com'))) {
         updates.sources = ['almatar'];
         detectedPlatform = 'المطار (Almatar)';
       }
 
-      const atgMatch = detectedPlatform === 'المطار (Almatar)'
+      const atgMatch = ['المطار (Almatar)', 'نسك (Nusuk)'].includes(detectedPlatform)
         ? decodedPath.match(/\/hotels\/rooms\/([^/]+)\/?$/)
         : decodedPath.match(/(?:\/atg\/|\/hotel\/details\/atg\/|\/hotels?\/details\/atg\/|\/hotels\/)([^?#]+)/);
       if (atgMatch && atgMatch[1]) {
@@ -171,6 +174,7 @@ export default function HotelSearchForm({
       resolvedHotelName: '', resolvedHotelInput: '',
       roomName: '', roomKeywords: [], mealPlan: '',
     };
+    if (/^nusuk:/i.test(text)) updated.sources = ['nusuk'];
 
     if (text.startsWith('http')) {
       const parsed = parseHotelUrl(text);
@@ -223,9 +227,9 @@ export default function HotelSearchForm({
     if (!input.startsWith('http://') && !input.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(input)) {
       input = 'https://' + input;
     }
-    const isSupported = input.includes('almatar.com') || input.includes('almosafer.com') || input.includes('booking.com') || /^booking:/i.test(input);
+    const isSupported = input.includes('almatar.com') || input.includes('almosafer.com') || input.includes('booking.com') || /^(booking|nusuk):/i.test(input);
     if (!isSupported) {
-      setRoomsError('يرجى إدخال رابط فندق صالح أو معرّف Booking');
+      setRoomsError('يرجى إدخال رابط فندق صالح أو معرّف المصدر');
       return;
     }
     roomRequest.current.controller?.abort();
@@ -287,7 +291,7 @@ export default function HotelSearchForm({
     const input = roomQuery.hotelInput || '';
     const control = roomRequest.current;
     control.controller?.abort(); control.sequence++;
-    const supported = /^booking:[1-9]\d*$/i.test(input) || (() => {
+    const supported = /^booking:[1-9]\d*$/i.test(input) || /^nusuk:[^\s/?#]+-[1-9]\d*$/i.test(input) || (() => {
       try { const host = new URL(input).hostname; return ['almosafer.com', 'almatar.com', 'booking.com'].some(domain => host === domain || host.endsWith(`.${domain}`)); } catch { return false; }
     })();
     const timer = setTimeout(() => {
@@ -551,7 +555,7 @@ export default function HotelSearchForm({
           )}
           
           {/* Room Selection */}
-          {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com') || formData.hotelInput?.includes('booking.com') || /^booking:/i.test(formData.hotelInput || '')) && (
+          {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com') || formData.hotelInput?.includes('booking.com') || /^(booking|nusuk):/i.test(formData.hotelInput || '')) && (
             <div className="mt-3 p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-blue-200 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
@@ -588,7 +592,7 @@ export default function HotelSearchForm({
                 <div className="flex flex-col items-center justify-center py-6 gap-3">
                   <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
                   <p className="text-xs text-slate-500">
-                    يتم جلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار')}...
+                    يتم جلب الغرف المتاحة من {formData.sources?.includes('nusuk') ? 'نسك' : (urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار'))}...
                   </p>
                 </div>
               )}
@@ -597,7 +601,7 @@ export default function HotelSearchForm({
                 <div className="flex flex-col items-center justify-center py-5 gap-2 border border-dashed border-blue-200 rounded-xl bg-blue-50/40">
                   <ListFilter className="w-5 h-5 text-blue-300" />
                   <p className="text-xs text-slate-500 text-center">
-                    اضغط على <span className="font-bold text-blue-600">تحديث الغرف</span> لجلب الغرف المتاحة من {urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار')}
+                    اضغط على <span className="font-bold text-blue-600">تحديث الغرف</span> لجلب الغرف المتاحة من {formData.sources?.includes('nusuk') ? 'نسك' : (urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار'))}
                   </p>
                 </div>
               )}

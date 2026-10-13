@@ -14,7 +14,7 @@ export default function Header({ systemReady, onRefreshStatus }) {
               لوحة مقارنة أسعار الفنادق
             </h1>
             <p className="text-xs text-slate-600 font-medium hidden sm:block">
-              Hotel Price Comparison Dashboard | Almosafer, Almatar & Booking
+              Hotel Price Comparison Dashboard | Almosafer, Almatar, Booking & Nusuk
             </p>
           </div>
         </div>

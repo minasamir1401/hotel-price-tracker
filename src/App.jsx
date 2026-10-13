@@ -31,7 +31,7 @@ export default function App() {
     bedCount: 0,
     bedType: 'any',
     includeUnknownBeds: false,
-    sources: new URLSearchParams(window.location.search).get('source') === 'booking' ? ['booking'] : ['almosafer', 'almatar'],
+    sources: ['booking', 'nusuk'].includes(new URLSearchParams(window.location.search).get('source')) ? [new URLSearchParams(window.location.search).get('source')] : ['almosafer', 'almatar'],
     roomName: '',
     roomKeywords: [],
     mealPlan: '',
@@ -54,6 +54,7 @@ export default function App() {
     almosafer: 'unchecked',
     almatar: 'unchecked',
     booking: 'unchecked',
+    nusuk: 'unchecked',
     excelExport: 'ready',
     lastSearch: 'جاهز للاستعلام',
     errors: [],
@@ -122,7 +123,7 @@ export default function App() {
       const isAlmosaferUrl = params.hotelInput && params.hotelInput.includes('almosafer.com');
       const isBooking = params.sources.includes('booking') || /^booking:/i.test(params.hotelInput) || params.hotelInput.includes('booking.com');
 
-      if (!isBooking && (isAlmatarUrl || (params.sources.includes('almatar') && !isAlmosaferUrl && (params.roomKeywords && params.roomKeywords.length > 0)))) {
+      if (!isBooking && !params.sources.includes('nusuk') && (isAlmatarUrl || (params.sources.includes('almatar') && !isAlmosaferUrl && (params.roomKeywords && params.roomKeywords.length > 0)))) {
         // Run daily prices search if Almatar room is selected or direct Almatar URL is used
         const dailyResult = await startDailyPricesSearch({
           ...params,
@@ -327,7 +328,7 @@ export default function App() {
       <footer className="border-t border-white/20 bg-slate-950/70 backdrop-blur-2xl py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-300">
           <div>
-            جميع الأسعار المعروضة بالريال السعودي (SAR) وتخضع لشروط وأحكام مزودي الخدمة (المسافر والمطار وBooking).
+            جميع الأسعار المعروضة بالريال السعودي (SAR) وتخضع لشروط وأحكام مزودي الخدمة (المسافر والمطار وBooking ونسك).
           </div>
           <div className="font-mono text-[11px] text-emerald-400 font-semibold">
             أسعار المصادر من الاستعلام المباشر • راجع وقت آخر تحديث

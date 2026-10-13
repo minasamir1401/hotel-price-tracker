@@ -29,7 +29,7 @@ export async function getSystemStatus() {
     if(!response.ok) throw new Error('offline');
     return await response.json();
   } catch {
-    return {almosafer:'offline',almatar:'offline',booking:'offline',excelExport:'ready',lastSearch:'الخادم غير متصل',activeProxies:0,errors:['تعذر الاتصال بالخادم']};
+    return {almosafer:'offline',almatar:'offline',booking:'offline',nusuk:'offline',excelExport:'ready',lastSearch:'الخادم غير متصل',activeProxies:0,errors:['تعذر الاتصال بالخادم']};
   } finally {clearTimeout(timer);}
 }
 

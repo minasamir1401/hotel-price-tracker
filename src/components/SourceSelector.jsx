@@ -4,6 +4,7 @@ const sources = [
   { key: 'almosafer', name: 'المسافر', english: 'Almosafer', icon: Globe2, description: 'أسعار الفنادق من المسافر' },
   { key: 'almatar', name: 'المطار', english: 'Almatar', icon: Plane, description: 'أسعار الفنادق من المطار' },
   { key: 'booking', name: 'بوكينج', english: 'Booking', icon: Building2, description: 'أسعار تطبيق Booking للأندرويد' },
+  { key: 'nusuk', name: 'نسك', english: 'Nusuk', icon: Building2, description: 'الأسعار العامة لخدمة الفنادق في تطبيق نسك' },
 ];
 export default function SourceSelector({ selectedSources, onChange }) {
   const toggle = key => {
@@ -16,7 +17,7 @@ export default function SourceSelector({ selectedSources, onChange }) {
       <label className="block text-sm font-semibold text-slate-800">اختر مصادر البحث <span className="text-red-500">*</span></label>
       <button type="button" onClick={() => onChange(sources.map(s => s.key))} className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700">تحديد الكل</button>
     </div>
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {sources.map(({ key, name, english, description, icon: Icon }) => {
         const selected = selectedSources.includes(key);
         return <button key={key} type="button" aria-pressed={selected} onClick={() => toggle(key)} className={`flex items-center gap-3 text-right p-4 border rounded-2xl transition-all ${selected ? 'bg-blue-50/85 border-blue-500/80 shadow-sm' : 'bg-white/60 border-white/60 hover:bg-white/80'}`}>
@@ -27,5 +28,6 @@ export default function SourceSelector({ selectedSources, onChange }) {
       })}
     </div>
     {selectedSources.includes('booking') && <p className="text-xs text-slate-600">Booking: الصق رابط الفندق أو رابط المشاركة Share؛ يتم تحديد الفندق والتحقق منه عبر التطبيق. متاح حاليًا لغرفة واحدة بدون أطفال.</p>}
+    {selectedSources.includes('nusuk') && <p className="text-xs text-slate-600">نسك: استخدم رابط صفحة غرف الفندق من المطار لتحديد الفندق ثم اختر نسك؛ الأسعار تُجلب من خدمة تطبيق نسك. متاح حاليًا لغرفة واحدة بدون أطفال، وعروض الحساب لم يُتحقق منها.</p>}
   </div>;
 }

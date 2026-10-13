@@ -89,6 +89,10 @@ export default function SystemStatusPanel({ status }) {
           <div>{getStatusBadge(status.booking)}</div>
         </div>
         {/* Excel Export Engine */}
+        <div className="flex items-center justify-between p-3 rounded-2xl border border-white/60 bg-white/50">
+          <div><div className="text-xs font-bold text-slate-900">محرك نسك</div><div className="text-[11px] text-slate-500 font-mono">Nusuk</div></div>
+          <div>{getStatusBadge(status.nusuk)}</div>
+        </div>
         <div className="flex items-center justify-between p-3 rounded-2xl border border-white/60 bg-white/50 backdrop-blur-md hover:bg-white/70 transition-all">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-white/90 border border-slate-200/50 flex items-center justify-center text-slate-700 shadow-2xs">
