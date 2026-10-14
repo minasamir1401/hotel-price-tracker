@@ -7,7 +7,7 @@ export function searchContextKey(params) {
   return JSON.stringify({hotel:String(params.hotelInput || '').trim(),checkIn:params.checkIn,checkOut:params.checkOut,
     adults:Number(params.adults),children:Number(params.children || 0),rooms:Number(params.rooms),childAges:params.childAges || [],
     sources:[...(params.sources || [])].sort(),roomName:params.roomName || '',roomKeywords:params.roomKeywords || [],
-    mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true});
+    mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true,bookingRateMode:params.bookingRateMode || 'auto'});
 }
 
 export function normalizeArabic(value) {
@@ -50,7 +50,8 @@ export function roomForSearch(results,params,summary) {
   ]));
 
   if (requested) {
-    const matches = results.filter(room => roomNameMatches(room.roomName, requested));
+    const exactMatches = results.filter(room => normalizeArabic(room.roomName) === normalizeArabic(requested));
+    const matches = exactMatches.length ? exactMatches : results.filter(room => roomNameMatches(room.roomName, requested));
     if (matches.length > 0) {
       matches.sort((a, b) => availCount(b) - availCount(a));
       return matches[0];

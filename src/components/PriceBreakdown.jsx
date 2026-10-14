@@ -7,6 +7,7 @@ export default function PriceBreakdown({total,offer,parts,showPolicy=false}) {
   const cancellationDetails=formatSourceConditions(offer?.cancellationDetails);
   if(total==null) return <span>غير متاح</span>;
   return <div className="min-w-44 space-y-1">
+    {offer?.rateContext?.geniusDiscountApplied && <p className="text-xs text-emerald-700">خصم Genius وارد في عرض Booking</p>}
     {breakdown ? <>
       {offer?.originalPriceBeforeTax>breakdown.priceBeforeTax && <div className="text-sm text-slate-500"><s>{money(offer.originalPriceBeforeTax)} ر.س</s> <span className="text-emerald-700">خصم {money(offer.discountAmount)} ر.س</span>{offer.discountLabels?.map(label=><span key={label} className="block" dir="auto">{label}</span>)}</div>}
       <div className="text-lg font-bold text-slate-900 font-mono" dir="ltr">{money(breakdown.priceBeforeTax)} <span className="text-xs">ر.س</span></div>

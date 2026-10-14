@@ -1,7 +1,9 @@
 import React from 'react';
 import { Building2, RefreshCw } from 'lucide-react';
+import { bookingSessionStatusLabel } from '../services/bookingPricing.js';
+import BookingPriceAccess from './BookingPriceAccess.jsx';
 
-export default function Header({ systemReady, onRefreshStatus }) {
+export default function Header({ systemReady, onRefreshStatus, bookingPricing, onBookingAccessChange }) {
   return (
     <header className="bg-white/80 backdrop-blur-xl border-b border-white/50 sticky top-0 z-30 shadow-xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
@@ -25,7 +27,8 @@ export default function Header({ systemReady, onRefreshStatus }) {
             <span className="text-blue-600 font-bold">ريال سعودي (SAR)</span>
           </div>
 
-          <span className="text-xs text-slate-600" title="أسعار الحساب وخصومات Genius تحتاج تسجيل دخول موثق من Booking">ربط حساب Booking غير متاح حاليًا</span>
+          {bookingPricing?.credentialConfigured && <span className="text-xs text-slate-600">{bookingSessionStatusLabel(bookingPricing)}</span>}
+          {bookingPricing?.credentialConfigured && <BookingPriceAccess onChange={onBookingAccessChange} />}
 
           <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full backdrop-blur-md border text-xs font-bold shadow-2xs ${systemReady ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800' : 'bg-slate-100 border-slate-300 text-slate-700'}`}>
             <span className={`w-2 h-2 rounded-full ${systemReady ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>

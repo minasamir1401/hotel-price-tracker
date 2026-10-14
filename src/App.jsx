@@ -35,6 +35,7 @@ export default function App() {
     roomName: '',
     roomKeywords: [],
     mealPlan: '',
+    bookingRateMode: 'auto',
   });
 
   const [searchState, setSearchState] = useState('idle'); // idle | loading | success | no-results | error
@@ -246,9 +247,15 @@ export default function App() {
       </div>
 
       <Header
+        bookingPricing={systemStatus.sourceDetails?.booking?.pricing}
         systemReady={formData.sources.every(source => systemStatus[source] === 'ready')}
         onRefreshStatus={refreshStatus}
-        onBookingSessionChange={refreshStatus}
+        onBookingAccessChange={() => {
+          searchGeneration.current++;
+          setResults([]); setSummary(null); setDailyPricesData(null); setSelectedRoomId(null);
+          setSearchState('idle'); setProgressInfo(null); setErrorMessage(''); setRetryDayError('');
+          refreshStatus();
+        }}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

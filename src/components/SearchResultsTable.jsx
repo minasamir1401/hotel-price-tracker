@@ -16,7 +16,7 @@ export default function LiveSearchResultsTable({results,summary,searchParams,onE
     <div className="bg-white/90 rounded-2xl p-4 mb-4 border border-slate-200">
       <div className="flex flex-wrap justify-between items-center mb-2">
         <label htmlFor="selected-room" className="font-bold text-slate-800">الغرفة المطلوب عرض جدول أسعارها اليومية وتصديرها</label>
-        <span className="text-xs text-slate-500 font-medium">الترتيب يبدأ تلقائياً بالغرف الأكثر اكتمالاً لكامل المدة</span>
+        <span className="text-xs text-slate-500 font-medium">تظهر الغرفة المحددة في البحث تلقائيًا عند توفرها</span>
       </div>
       <select id="selected-room" value={selectedRoomId || results[0].id} onChange={e=>onRoomSelect?.(e.target.value)} className="w-full border border-slate-300 rounded-xl p-3 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 outline-none">
         {results.map(r=>{

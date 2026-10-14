@@ -66,6 +66,19 @@ export async function getBookingSession() {
   }
 }
 
+async function bookingPriceAccess(method, body) {
+  const response = await fetch(`${API_BASE_URL}/booking-price-access`, {
+    method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  const data = await response.json();
+  if (!response.ok || (method !== 'GET' && !data.success)) throw new Error(data.message || 'تعذر تحديث الوصول لأسعار الحساب');
+  return data;
+}
+export const unlockBookingPrices = key => bookingPriceAccess('POST', { key });
+export const lockBookingPrices = () => bookingPriceAccess('DELETE');
+export const getBookingPriceAccess = () => bookingPriceAccess('GET');
+
 export async function fetchHotelRoomsList(searchData, { signal } = {}) {
   const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;
   return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, timeoutMs: startupTimeout,
@@ -74,6 +87,7 @@ export async function fetchHotelRoomsList(searchData, { signal } = {}) {
       adults: searchData.adults ?? 2, rooms: searchData.rooms ?? 1, source: searchData.source,
       children: searchData.children ?? (searchData.childAges || []).length,
       refresh: Boolean(searchData.refresh), childAges: searchData.childAges || [],
+      bookingRateMode: searchData.bookingRateMode,
     },
   });
 }

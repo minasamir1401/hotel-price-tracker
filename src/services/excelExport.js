@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { rateFields, catalogFields, priceParts, sumPriceParts, repeatedRateField } from './rates.js';
 import {formatSourceConditions} from './sourceConditions.js';
+import { bookingRateContextLabel } from './bookingPricing.js';
 const value = n => n==null ? 'غير متاح' : n;
 export function getCleanHotelName(searchParams,summary,results) { return summary?.hotelName || results?.[0]?.hotelName || searchParams.hotelInput; }
 export function getCleanRoomName(searchParams,summary,results) { return summary?.almosaferRoom || results?.[0]?.roomName || ''; }
@@ -26,10 +27,13 @@ export function buildExportWorkbook(searchParams,results,summary,viewMode='all',
   const sheet=data=>{const ws=XLSX.utils.aoa_to_sheet(data);ws['!cols']=Array.from({length:Math.max(...data.map(r=>r.length))},(_,i)=>({wch:i===0?28:i===1?18:30}));ws['!views']=[{RTL:true}];return ws;};
   XLSX.utils.book_append_sheet(workbook,sheet(daily),`الجدول اليومي (${pairs.length} ليلة)`);
   const details=[...meta,['المصدر','الغرفة','السراير','مساحة الغرفة (م²)','اليوم','الوصول','المغادرة','البالغون لكل غرفة','عدد الغرف','الخطة','سعر الغرفة بدون الضرائب (ر.س/ليلة)','الضرائب والرسوم (ر.س/ليلة)','الإجمالي (ر.س/غرفة/ليلة)','تفصيل الضرائب والرسوم','الإلغاء','الدفع','بطاقة ائتمانية','سعة العرض (بالغين)','الغرف المتبقية','رابط المصدر','مرافق الغرفة','وصف الغرفة','نوع العرض','شروط عرض الشريك','السعر الأصلي بدون الضرائب (ر.س)','الخصم المطبق (ر.س)','عرض الخصم حسب المصدر','شروط تغيير التاريخ','تفصيل الدفع من المصدر','تفصيل الإلغاء من المصدر','وصف الوجبات من المصدر']];
+  details.at(-1).push('سياق سعر Booking','خصم Genius من المصدر');
   for(const room of results) for(const day of room.dailyRates || []) for(const [field,label] of catalogFields([room],rateTier)) {
     if(repeatedRateField(day,field,catalogFields([room],rateTier)))continue;
     const offer=day.offers?.[field],total=day[`${field}Price`],parts=priceParts(offer,total);
     details.push([room.sourceArabic,room.roomName,room.beddingLabel || 'لم يحدد المصدر',value(room.roomSizeM2),day.dayOfWeek,day.date,day.nextDate,room.adults,room.rooms,label,...taxValues(parts),value(total),parts?.items?.map(item=>`${item.name}: ${item.amount} ر.س`).join(' • ') || 'لم يحدد المصدر',offer?.cancellationPolicy || day.error || 'غير متاح',offer?.paymentLabel || (offer?.noPrepayment?'بدون دفع مسبق — الدفع أثناء الإقامة':offer?.paymentPolicy || 'لم يحدد المصدر'),offer?.noCreditCard?'لا تحتاج بطاقة ائتمانية':'لم يحدد المصدر',value(offer?.capacityAdults),value(offer?.roomsLeft),room.bookingUrl,(room.roomAmenities || []).join(' • ') || 'لم يحدد المصدر',room.roomDescription || 'لم يحدد المصدر',room.partnerOffer?'عرض شريك':'عرض الفندق',(offer?.partnerConditions || []).join(' • '),value(offer?.originalPriceBeforeTax),value(offer?.discountAmount),(offer?.discountLabels || []).join(' • '),offer?.reschedulePolicy || 'لم يحدد المصدر',formatSourceConditions(offer?.paymentDetails) || 'لم يحدد المصدر',formatSourceConditions(offer?.cancellationDetails) || 'لم يحدد المصدر',offer?.mealLabelFromSource || 'لم يحدد المصدر']);
+    const context = offer?.rateContext;
+    details.at(-1).push(bookingRateContextLabel(context) || 'لم يحدد المصدر', context ? (context.geniusDiscountApplied ? 'وارد في عرض Booking' : 'لم يرد في العرض') : 'لم يحدد المصدر');
   }
   XLSX.utils.book_append_sheet(workbook,sheet(details),'تفاصيل الغرف والأيام');
   if(viewMode==='all'||viewMode==='separated'||viewMode==='combined') {

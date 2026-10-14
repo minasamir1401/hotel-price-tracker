@@ -60,6 +60,23 @@ test('Searching the selected Twin Haram View uses its own table, summary and exp
   assert.ok(getExportFileName({},results,summary).includes(twin.roomName));
 });
 
+test('An exact Twin selection takes priority over a more available partial-view Twin in table, summary and export',()=>{
+  const standard={...elafTwinRoom(),id:'standard',roomIdentity:'booking:15147954:1514795404',roomName:'غرفة توأم',nights:17,
+    breakfastAvailableNights:16,breakfastFlexibleAvailableNights:16};
+  const partial={...standard,id:'partial',roomIdentity:'booking:15147954:1514795405',roomName:'غرفة ضيوف توأم مع إطلالات جزئية على الحرم',
+    breakfastAvailableNights:17,breakfastFlexibleAvailableNights:17};
+  const results=[partial,standard];
+  for(const params of [{roomName:'غرفة توأم'},{roomKeywords:['غرفة توأم']},{roomName:'غرفه توأم'}]) {
+    const chosen=roomForSearch(results,params,{almosaferRoom:partial.roomName});
+    assert.equal(chosen,standard);
+    const summary=summaryForRoom({rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-24'}]},chosen);
+    assert.equal(summary.activeRoomId,'standard');
+    assert.equal(summary.almosaferRoom,'غرفة توأم');
+    assert.ok(getExportFileName({},results,summary).includes('غرفة توأم'));
+  }
+  assert.equal(roomForSearch(results,{roomName:partial.roomName},null),partial);
+});
+
 test('Displayed search results belong to their hotel, dates, occupancy, source and bed filters',()=>{
   const params={hotelInput:'booking:184752',checkIn:'2026-10-20',checkOut:'2026-10-21',adults:2,rooms:1,sources:['booking']};
   const key=searchContextKey(params);
