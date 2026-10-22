@@ -546,7 +546,7 @@ export default function HotelSearchForm({
 
                 <div className="flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span className="text-slate-500 font-medium">سعة النزلاء:</span>
+                  <span className="text-slate-500 font-medium">النزلاء الفعليون:</span>
                   <strong className="text-slate-900 font-semibold">{formData.adults} بالغين لكل غرفة، {formData.rooms} غرفة، إجمالي {formData.adults*formData.rooms} بالغين</strong>
                 </div>
 
@@ -765,19 +765,19 @@ export default function HotelSearchForm({
         <div className="p-3 rounded-2xl bg-white/40 backdrop-blur-md border border-white/60 space-y-2.5">
           <div className="flex items-center justify-between">
             <label className="block text-xs sm:text-sm font-bold text-slate-900">
-              سعة الغرفة وعدد الأفراد (سنجل، دبل، ثلاثية، رباعية):
+              عدد البالغين المقيمين في كل غرفة:
             </label>
             <span className="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
-              {formData.adults} {formData.adults === 1 ? 'فرد (سنجل)' : formData.adults === 2 ? 'أفراد (دبل)' : formData.adults === 3 ? 'أفراد (ثلاثية)' : formData.adults === 4 ? 'أفراد (رباعية)' : 'أفراد'}
+              {formData.adults} بالغين لكل غرفة
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
-              { count: 1, label: '1 فرد (سنجل / مفردة)' },
-              { count: 2, label: '2 أفراد (دبل / مزدوجة)' },
-              { count: 3, label: '3 أفراد (غرفة ثلاثية)' },
-              { count: 4, label: '4 أفراد (غرفة رباعية)' },
+              { count: 1, label: 'بالغ واحد' },
+              { count: 2, label: 'بالغان' },
+              { count: 3, label: '3 بالغين' },
+              { count: 4, label: '4 بالغين' },
             ].map((occ) => {
               const isSelected = Number(formData.adults) === occ.count;
               return (
@@ -796,6 +796,9 @@ export default function HotelSearchForm({
               );
             })}
           </div>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            اختر عدد النزلاء الفعلي، ثم اختر نوع الغرفة من قائمة الغرف. يمكن حجز غرفة ثلاثية لشخصين، وقد يختلف سعرها عن حجزها لثلاثة بالغين. عند المقارنة مع المصدر، استخدم عدد النزلاء نفسه.
+          </p>
         </div>
 
         {/* Occupancy Grid: Adults, Children, Rooms */}
