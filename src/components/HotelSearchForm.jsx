@@ -251,7 +251,7 @@ export default function HotelSearchForm({
         adults: currentFormData.adults || 2,
         rooms: currentFormData.rooms || 1,
         source: isBookingInput ? 'booking' : (currentFormData.sources?.length === 1 ? currentFormData.sources[0] : undefined),
-        bookingRateMode: currentFormData.bookingRateMode,
+        bookingRateMode: 'guest',
         childAges: currentFormData.childAges || [],
         children: currentFormData.children || 0,
         refresh,
@@ -295,7 +295,7 @@ export default function HotelSearchForm({
     children: formData.children,
     childAges: formData.childAges || [],
     sources: formData.sources?.length === 1 ? formData.sources : [],
-    bookingRateMode: formData.bookingRateMode || 'auto',
+    bookingRateMode: 'guest',
   });
   const roomQuery = useMemo(() => JSON.parse(roomQueryKey), [roomQueryKey]);
   useEffect(() => {
@@ -339,10 +339,7 @@ export default function HotelSearchForm({
       [field]: value,
     };
 
-    if (field === 'bookingRateMode') {
-      updated.roomName = ''; updated.roomKeywords = []; updated.mealPlan = '';
-      setAvailableRooms([]);
-    } else if (field === 'hotelInput' && /^booking:/i.test(String(value).trim())) {
+    if (field === 'hotelInput' && /^booking:/i.test(String(value).trim())) {
       updated.resolvedHotelName = ''; updated.resolvedHotelInput = '';
       updated.sources = ['booking'];
       updated.roomName = ''; updated.roomKeywords = [];
@@ -569,18 +566,6 @@ export default function HotelSearchForm({
           )}
           
           {/* Room Selection */}
-          {(formData.sources?.includes('booking') || formData.hotelInput?.includes('booking.com') || /^booking:/i.test(formData.hotelInput || '')) && (
-            <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-              <label htmlFor="booking-rate-mode" className="text-sm font-semibold text-slate-800">أسعار Booking
-                <select id="booking-rate-mode" value={formData.bookingRateMode || 'auto'} onChange={e => handleChange('bookingRateMode', e.target.value)} className="mt-2 w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl">
-                  <option value="auto">تلقائي</option>
-                  <option value="account">أسعار الحساب — جلسة Booking مطلوبة</option>
-                  <option value="guest">أسعار الموبايل</option>
-                </select>
-              </label>
-              {formData.bookingRateMode === 'account' && <p className="mt-2 text-xs text-slate-600">اختيار أسعار الحساب يتطلب جلسة Booking مهيأة.</p>}
-            </div>
-          )}
           {(Boolean(urlDetails?.detectedPlatform) || formData.hotelInput?.includes('almatar.com') || formData.hotelInput?.includes('almosafer.com') || formData.hotelInput?.includes('booking.com') || /^(booking|nusuk):/i.test(formData.hotelInput || '')) && (
             <div className="mt-3 p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-blue-200 shadow-sm">
               <div className="flex items-center justify-between mb-3">

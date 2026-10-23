@@ -7,7 +7,7 @@ export function searchContextKey(params) {
   return JSON.stringify({hotel:String(params.hotelInput || '').trim(),checkIn:params.checkIn,checkOut:params.checkOut,
     adults:Number(params.adults),children:Number(params.children || 0),rooms:Number(params.rooms),childAges:params.childAges || [],
     sources:[...(params.sources || [])].sort(),roomName:params.roomName || '',roomKeywords:params.roomKeywords || [],
-    mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true,bookingRateMode:params.bookingRateMode || 'auto'});
+    mealPlan:params.mealPlan || '',roomNotes:params.roomNotes || '',bedCount:Number(params.bedCount || 0),bedType:params.bedType || 'any',includeUnknownBeds:params.includeUnknownBeds===true,bookingRateMode:'guest'});
 }
 
 export function normalizeArabic(value) {

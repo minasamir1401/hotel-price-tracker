@@ -7,7 +7,7 @@ function searchTimeout(searchData) {
 }
 export async function startHotelPriceSearch(searchData, onProgress) {
   return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'search-hotel-prices',
-    payload: { ...searchData, refresh: true }, onProgress, timeoutMs: searchTimeout(searchData) });
+    payload: { ...searchData, bookingRateMode: 'guest', refresh: true }, onProgress, timeoutMs: searchTimeout(searchData) });
 }
 export async function startDailyPricesSearch(searchData, onProgress, maxAttempts = 2) {
   return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'daily-prices',
@@ -87,7 +87,7 @@ export async function fetchHotelRoomsList(searchData, { signal, onProgress } = {
       adults: searchData.adults ?? 2, rooms: searchData.rooms ?? 1, source: searchData.source,
       children: searchData.children ?? (searchData.childAges || []).length,
       refresh: Boolean(searchData.refresh), childAges: searchData.childAges || [],
-      bookingRateMode: searchData.bookingRateMode,
+      bookingRateMode: 'guest',
     },
   });
 }
