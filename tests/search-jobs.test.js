@@ -150,10 +150,11 @@ test('Legacy streams support CRLF and a final result without a trailing blank li
   } finally { globalThis.fetch = saved; }
 });
 
-test('Room loading resumes the same background job after a gateway failure and preserves hotel and occupancy', async () => {
+test('Room loading resumes the same background job and preserves the full month, room dates and occupancy', async () => {
   const saved = globalThis.fetch, requests = [];
   let polls = 0;
-  const result = { success: true, hotelId: '1441222', rooms: ['Superior Twin'] };
+  const result = { success: true, hotelId: '1441222', rooms: ['Superior Twin'], roomInventoryId: 'inventory-reference',
+    roomAvailability: [{ name: 'Superior Twin', availableDates: ['2027-02-10'], availableNights: 1, totalNights: 28 }] };
   try {
     globalThis.fetch = async (url, options) => {
       requests.push({ url, options });
@@ -162,13 +163,28 @@ test('Room loading resumes the same background job after a gateway failure and p
       return Response.json({ status: 'completed', result });
     };
     assert.deepEqual(await fetchHotelRoomsList({ hotelInput: 'https://www.almosafer.com/ar/hotel/details/atg/hotel-1441222',
-      checkIn: '2027-02-08', checkOut: '2027-02-09', source: 'almosafer', rooms: 2, adults: 3, children: 1, childAges: [7] }), result);
+      checkIn: '2027-02-08', checkOut: '2027-03-08', source: 'almosafer', rooms: 2, adults: 3, children: 1, childAges: [7] }), result);
     const body = JSON.parse(requests[0].options.body);
     assert.equal(body.background, true);
     assert.equal(body.rooms, 2); assert.equal(body.adults, 3); assert.deepEqual(body.childAges, [7]);
+    assert.equal(body.checkOut, '2027-03-08');
     assert.equal(requests[0].url, '/api/hotel-rooms-list');
     assert.equal(requests.filter(r => r.options.method === 'POST').length, 1);
     assert.equal(requests[1].url, requests[2].url);
+  } finally { globalThis.fetch = saved; }
+});
+
+test('The price search forwards the room inventory reference without substituting the selected room or dates', async () => {
+  const saved = globalThis.fetch;
+  try {
+    globalThis.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.equal(body.roomInventoryId, 'recent-verified-inventory');
+      assert.equal(body.roomName, 'Triple');
+      assert.equal(body.checkOut, month.checkOut);
+      return Response.json({ success: true, data: [] });
+    };
+    await startHotelPriceSearch({ ...month, roomInventoryId: 'recent-verified-inventory', roomName: 'Triple' });
   } finally { globalThis.fetch = saved; }
 });
 

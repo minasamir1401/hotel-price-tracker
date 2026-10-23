@@ -15,6 +15,9 @@ export default function HotelSearchForm({
   const [availableRooms, setAvailableRooms] = useState(formData.roomName ? [formData.roomName] : []);
   const [isFetchingRooms, setIsFetchingRooms] = useState(false);
   const [roomsError, setRoomsError] = useState('');
+  const [roomAvailability, setRoomAvailability] = useState([]);
+  const [roomWarnings, setRoomWarnings] = useState([]);
+  const [roomProgress, setRoomProgress] = useState(null);
   const roomRequest = useRef({ sequence: 0, controller: null });
   const roomCallbacks = useRef({ setFormData, onSourceChecked });
   useLayoutEffect(() => {
@@ -238,12 +241,13 @@ export default function HotelSearchForm({
     roomRequest.current.controller = controller;
     setIsFetchingRooms(true);
     setRoomsError('');
+    setRoomProgress(null);
     try {
       const isBookingInput = input.includes('booking.com') || /^booking:/i.test(input);
       const data = await fetchHotelRoomsList({
         hotelInput: input,
         checkIn: currentFormData.checkIn || today,
-        checkOut: new Date(Date.parse(`${currentFormData.checkIn || today}T12:00:00Z`) + 86400000).toISOString().slice(0,10),
+        checkOut: currentFormData.checkOut || new Date(Date.parse(`${currentFormData.checkIn || today}T12:00:00Z`) + 86400000).toISOString().slice(0, 10),
         adults: currentFormData.adults || 2,
         rooms: currentFormData.rooms || 1,
         source: isBookingInput ? 'booking' : (currentFormData.sources?.length === 1 ? currentFormData.sources[0] : undefined),
@@ -251,18 +255,22 @@ export default function HotelSearchForm({
         childAges: currentFormData.childAges || [],
         children: currentFormData.children || 0,
         refresh,
-      }, { signal: controller.signal });
+      }, { signal: controller.signal, onProgress: progress => {
+        if (sequence === roomRequest.current.sequence && !controller.signal.aborted) setRoomProgress(progress);
+      } });
       if (sequence !== roomRequest.current.sequence || controller.signal.aborted) return;
       if (data && data.success) {
         if (data.hotelName) {
-          roomCallbacks.current.setFormData(prev => prev.hotelInput === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input, resolvedHotelId: data.hotelId }) : prev);
+          roomCallbacks.current.setFormData(prev => prev.hotelInput.trim() === input ? ({ ...prev, resolvedHotelName: data.hotelName, resolvedHotelInput: input, resolvedHotelId: data.hotelId, roomInventoryId: data.roomInventoryId }) : prev);
         }
+        setRoomAvailability(data.roomAvailability || []);
+        setRoomWarnings(data.warnings || []);
         if (data.rooms && data.rooms.length > 0) {
           setAvailableRooms(previous => previous.length === data.rooms.length && previous.every((room, index) => room === data.rooms[index]) ? previous : data.rooms);
 
         } else {
           setAvailableRooms([]);
-          setRoomsError('لا توجد غرف متاحة في هذه التواريخ');
+          setRoomsError(data.warnings?.length ? 'تعذر التحقق من بعض الليالي؛ راجع التفاصيل وأعد المحاولة.' : 'لا توجد غرف متاحة خلال الفترة المختارة');
         }
       } else {
         setRoomsError(data.message || 'فشل استخراج الغرف');
@@ -281,6 +289,7 @@ export default function HotelSearchForm({
   const roomQueryKey = JSON.stringify({
     hotelInput: formData.hotelInput,
     checkIn: formData.checkIn,
+    checkOut: formData.checkOut,
     adults: formData.adults,
     rooms: formData.rooms,
     children: formData.children,
@@ -297,7 +306,7 @@ export default function HotelSearchForm({
       try { const host = new URL(input).hostname; return ['almosafer.com', 'almatar.com', 'booking.com'].some(domain => host === domain || host.endsWith(`.${domain}`)); } catch { return false; }
     })();
     const timer = setTimeout(() => {
-      setAvailableRooms([]); setRoomsError(''); setIsFetchingRooms(false);
+      setAvailableRooms([]); setRoomAvailability([]); setRoomWarnings([]); setRoomProgress(null); setRoomsError(''); setIsFetchingRooms(false);
       if (supported && !roomQuery.childAges.some(age => !Number.isInteger(age))) handleFetchRooms(roomQuery, false);
     }, 700);
     return () => { clearTimeout(timer); control.controller?.abort(); control.sequence++; };
@@ -604,6 +613,11 @@ export default function HotelSearchForm({
               {roomsError && (
                 <p className="text-xs text-red-600 mb-3 px-1">{roomsError}</p>
               )}
+              <p className="text-xs text-slate-600 mb-3">الغرف المتاحة في أي ليلة خلال الفترة المختارة، بنفس عدد النزلاء والغرف. يمكن اختيار غرفة حتى لو لم تتوفر في أول ليلة.</p>
+              {roomWarnings.length > 0 && <details className="text-xs text-amber-800 bg-amber-50 rounded-lg p-2 mb-3">
+                <summary className="cursor-pointer">تعذر التحقق من {roomWarnings.length} ليلة؛ القائمة قد تكون غير مكتملة. عرض التواريخ والتفاصيل</summary>
+                <p className="mt-2">{roomWarnings.map(w => `${w.date}: ${w.message}`).join(' • ')}</p>
+              </details>}
 
               {isFetchingRooms && availableRooms.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-6 gap-3">
@@ -611,6 +625,9 @@ export default function HotelSearchForm({
                   <p className="text-xs text-slate-500">
                     يتم جلب الغرف المتاحة من {formData.sources?.includes('nusuk') ? 'نسك' : (urlDetails?.detectedPlatform?.includes('المسافر') || formData.hotelInput?.includes('almosafer.com') ? 'المسافر' : (formData.sources?.includes('booking') ? 'بوكينج' : 'المطار'))}...
                   </p>
+                  {roomProgress && <p role="status" className="text-xs text-blue-700">{roomProgress.phase === 'repairing'
+                    ? `إعادة التحقق من الليالي غير المؤكدة: ${roomProgress.repairCompleted} من ${roomProgress.repairTotal}`
+                    : `تم فحص ${roomProgress.completed} من ${roomProgress.total} ليلة`}</p>}
                 </div>
               )}
 
@@ -635,7 +652,7 @@ export default function HotelSearchForm({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="leading-snug">جميع الغرف المتاحة (أفضل سعر متاح)</span>
+                      <span className="leading-snug">جميع الغرف المتاحة خلال الفترة</span>
                       {!formData.roomName && (
                         <span className="shrink-0 w-4 h-4 rounded-full bg-white/30 flex items-center justify-center">
                           <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -647,6 +664,7 @@ export default function HotelSearchForm({
                   </button>
                   {availableRooms.map((room) => {
                     const isSelected = formData.roomName === room;
+                    const availability = roomAvailability.find(item => item.name === room);
                     return (
                       <button
                         key={room}
@@ -674,6 +692,10 @@ export default function HotelSearchForm({
                             </span>
                           )}
                         </div>
+                        {availability && <div className={`text-xs mt-2 font-normal ${isSelected ? 'text-blue-50' : 'text-slate-600'}`}>
+                          <p>متاحة {availability.availableNights} من {availability.totalNights} ليلة</p>
+                          <p className="mt-1" dir="auto">تواريخ الليالي المتاحة: {availability.availableDates.join('، ')}</p>
+                        </div>}
                       </button>
                     );
                   })}

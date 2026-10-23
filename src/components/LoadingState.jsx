@@ -23,6 +23,10 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
   }, 0);
 
   const sourcesText = selectedSources.map((s) => ({ almosafer: 'المسافر', almatar: 'المطار', booking: 'بوكينج' })[s] || s).join(' و ') || 'المصادر المحددة';
+  const repairing = progress?.phase === 'repairing';
+  const completed = repairing ? progress.repairCompleted : progress?.completed;
+  const total = repairing ? progress.repairTotal : progress?.total;
+  const percent = progress?.percent ?? (total > 0 ? Math.round(completed / total * 100) : 0);
 
   return (
     <div className="bg-white/85 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-xl shadow-slate-950/5 p-8 sm:p-10 text-center max-w-2xl mx-auto">
@@ -48,19 +52,19 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
           <div className="flex items-center justify-between gap-3 text-sm font-bold text-blue-950 mb-2.5">
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-blue-600 text-white font-mono text-xs">
-                {progress.completed} / {progress.total}
+                {completed} / {total}
               </span>
-              <span>تم استخراج {progress.completed} من {progress.total} يوم (ليلة)</span>
+              <span>{repairing ? 'إعادة التحقق من الليالي غير المؤكدة' : `تم فحص ${completed} من ${total} ليلة`}</span>
             </div>
             <span className="font-mono text-base font-extrabold text-blue-700">
-              {progress.percent || Math.round((progress.completed / progress.total) * 100)}%
+              {percent}%
             </span>
           </div>
 
           <div className="w-full h-3.5 bg-blue-100/90 rounded-full overflow-hidden p-0.5 border border-blue-200 shadow-inner">
             <div
               className="h-full bg-gradient-to-r from-blue-500 via-indigo-600 to-blue-700 rounded-full transition-all duration-500 ease-out shadow-xs"
-              style={{ width: `${Math.max(4, Math.min(100, progress.percent || Math.round((progress.completed / progress.total) * 100)))}%` }}
+              style={{ width: `${Math.max(4, Math.min(100, percent))}%` }}
             />
           </div>
 

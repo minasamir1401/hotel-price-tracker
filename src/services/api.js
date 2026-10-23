@@ -79,9 +79,9 @@ export const unlockBookingPrices = key => bookingPriceAccess('POST', { key });
 export const lockBookingPrices = () => bookingPriceAccess('DELETE');
 export const getBookingPriceAccess = () => bookingPriceAccess('GET');
 
-export async function fetchHotelRoomsList(searchData, { signal } = {}) {
+export async function fetchHotelRoomsList(searchData, { signal, onProgress } = {}) {
   const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;
-  return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, timeoutMs: startupTimeout,
+  return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, onProgress, timeoutMs: Math.max(startupTimeout, searchTimeout(searchData)),
     payload: {
       hotelInput: searchData.hotelInput, checkIn: searchData.checkIn, checkOut: searchData.checkOut,
       adults: searchData.adults ?? 2, rooms: searchData.rooms ?? 1, source: searchData.source,
