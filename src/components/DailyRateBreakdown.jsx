@@ -2,10 +2,9 @@ import { money, rateFields, sumPriceParts, repeatedRateField } from '../services
 import PriceBreakdown from './PriceBreakdown';
 export default function LiveDailyRateBreakdown({dailyBreakdown,summary,rateTier='both',onRetryDay,retryingDate}) {
   if(!dailyBreakdown?.length) return null;
-  const activeFields=rateFields(summary,rateTier);
+  const availableFields=rateFields(summary,rateTier);
+  const activeFields=availableFields.length?availableFields:[['roomOnly','إقامة فقط']];
   const fields=activeFields.map(([field,label])=>[`almosafer${field[0].toUpperCase()+field.slice(1)}`,label,field]);
-  const hasAvailable = dailyBreakdown.some(d => fields.some(([key]) => d[key] !== null && d[key] !== undefined && d.almosaferAvailability !== 'unavailable' && d.almosaferAvailability !== 'error'));
-  if (!hasAvailable) return null;
   const hasAlternatives = dailyBreakdown.some(d=>d.isAlternative);
   return <div className="bg-white/90 rounded-3xl border border-slate-200 overflow-hidden mb-6">
     <div className="p-5 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">

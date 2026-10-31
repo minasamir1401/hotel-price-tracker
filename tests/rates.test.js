@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import * as XLSX from 'xlsx';
 import {buildExportWorkbook,getExportFileName} from '../src/services/excelExport.js';
 import {startHotelPriceSearch,getSystemStatus,fetchHotelRoomsList} from '../src/services/api.js';
-import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey,rateFields,repeatedRateField,roomForSearch} from '../src/services/rates.js';
+import {summaryForRoom,replaceVerifiedNight,priceParts,sumPriceParts,searchContextKey,rateFields,repeatedRateField,roomForSearch,roomWithAlternatives} from '../src/services/rates.js';
 import {buildDailyPricesWorkbook} from '../src/services/dailyPricesExport.js';
 
 const elafTwinRoom=()=>{
@@ -17,6 +17,52 @@ const elafTwinRoom=()=>{
     dailyRates:[{date:'2026-10-24',nextDate:'2026-10-25',dayOfWeek:'السبت',availability:'available',roomOnlyPrice:901.74,roomOnlyFlexiblePrice:901.74,breakfastPrice:1039.66,breakfastFlexiblePrice:1060.88,
       offers:{roomOnly,roomOnlyFlexible:{...roomOnly},breakfast:offer('866174111_354821435_0_1_0',882,1039.66,false),breakfastFlexible:offer('866174111_355871734_0_1_0',900,1060.88,true)}}]};
 };
+
+test('Alternative room prices are opt-in and table, totals and Excel follow the same choice',()=>{
+  const alternativeOffer={price:200,cancellationPolicy:'إلغاء مجاني'};
+  const room={id:'selected',roomName:'Twin',rooms:2,adults:2,nights:2,sourceArabic:'المسافر',
+    roomOnlyAvailableNights:1,roomOnlyTotalPrice:null,dailyRates:[
+      {date:'2026-10-24',dayOfWeek:'السبت',availability:'available',roomOnlyPrice:100,offers:{roomOnly:{price:100}}},
+      {date:'2026-10-25',dayOfWeek:'الأحد',availability:'available_alternative',isAlternative:true,alternativeRoomName:'Other Twin',
+        roomOnlyPrice:null,alternativeRoomOnlyPrice:200,offers:{roomOnly:alternativeOffer},alternativeOffers:{roomOnly:alternativeOffer}}
+    ]};
+  const snapshot=structuredClone(room);
+  const base={rooms:2,adults:2,nights:2,dailyBreakdown:room.dailyRates.map(({date,dayOfWeek})=>({date,dayOfWeek}))};
+  for(const enabled of [false,true,false]) {
+    const visible=roomWithAlternatives(room,enabled),summary=summaryForRoom(base,visible);
+    const day=summary.dailyBreakdown[1];
+    assert.equal(day.almosaferRoomOnly,enabled?200:null);
+    assert.equal(day.isAlternative,enabled);
+    assert.equal(day.alternativeRoomName,enabled?'Other Twin':null);
+    assert.equal(day.almosaferAvailability,enabled?'available_alternative':'unavailable');
+    assert.deepEqual(day.almosaferOffers,enabled?{roomOnly:alternativeOffer}:{});
+    assert.equal(summary.almosaferRoomOnly,enabled?600:null);
+    assert.equal(summary.almosaferRoomOnlyAvailableNights,enabled?2:1);
+    const book=buildExportWorkbook({},[visible],summary);
+    const rows=XLSX.utils.sheet_to_json(book.Sheets[book.SheetNames[0]],{header:1});
+    assert.equal(rows.find(row=>row[0]==='الأحد')[2],enabled?200:'غير متاح');
+    assert.equal(rows.at(-1)[2],enabled?600:'غير متاح');
+    const details=XLSX.utils.sheet_to_json(book.Sheets['تفاصيل الغرف والأيام'],{header:1});
+    assert.equal(details.find(row=>row[4]==='الأحد')[12],enabled?200:'غير متاح');
+  }
+  assert.deepEqual(room,snapshot);
+  assert.equal(roomWithAlternatives(room).dailyRates[1].roomOnlyPrice,null);
+});
+
+test('Alternatives preserve zero direct prices and never turn failed verification into availability',()=>{
+  const room={rooms:1,dailyRates:[
+    {availability:'available',roomOnlyPrice:0,alternativeRoomOnlyPrice:150,offers:{roomOnly:{price:0}}},
+    {availability:'error',isAlternative:true,alternativeRoomOnlyPrice:200,offers:{roomOnly:{price:200}}}
+  ]};
+  const visible=roomWithAlternatives(room,true);
+  assert.equal(visible.dailyRates[0].roomOnlyPrice,0);
+  assert.equal(visible.dailyRates[0].isAlternative,false);
+  assert.equal(visible.dailyRates[1].availability,'error');
+  assert.equal(visible.dailyRates[1].roomOnlyPrice,null);
+  assert.equal(visible.dailyRates[1].isAlternative,false);
+  assert.deepEqual(visible.dailyRates[1].offers,{});
+  assert.equal(visible.roomOnlyTotalPrice,null);
+});
 test('Booking mobile offer 765 appears once with free cancellation in daily and detailed Excel, retaining the source room name',()=>{
   const room=elafTwinRoom(),base={rooms:1,adults:2,dailyBreakdown:[{date:'2026-10-24',dayOfWeek:'السبت'}]},summary=summaryForRoom(base,room);
   assert.deepEqual(rateFields(summary).map(([field])=>field),['roomOnlyFlexible','breakfast','breakfastFlexible']);

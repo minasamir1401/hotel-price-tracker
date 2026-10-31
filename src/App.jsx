@@ -9,7 +9,7 @@ import EmptyState from './components/EmptyState';
 import ErrorState from './components/ErrorState';
 import DailyPricesView from './components/DailyPricesView';
 import { startHotelPriceSearch, getSystemStatus, startDailyPricesSearch } from './services/api';
-import { summaryForRoom, replaceVerifiedNight, searchContextKey, roomForSearch } from './services/rates';
+import { summaryForRoom, replaceVerifiedNight, searchContextKey, roomForSearch, roomWithAlternatives } from './services/rates';
 
 export default function App() {
   const [{ tomorrowStr, tenDaysLaterStr }] = useState(() => {
@@ -46,9 +46,11 @@ export default function App() {
   const [results, setResults] = useState([]);
   const [summary, setSummary] = useState(null);
   const [selectedRoomId,setSelectedRoomId] = useState(null);
+  const [showAlternatives,setShowAlternatives] = useState(false);
   const [retryingDate,setRetryingDate] = useState(null);
   const [retryDayError,setRetryDayError] = useState('');
-  const selectedSummary = summaryForRoom(summary,results.find(r=>r.id===selectedRoomId) || results[0]);
+  const visibleResults = results.map(room=>roomWithAlternatives(room,showAlternatives));
+  const selectedSummary = summaryForRoom(summary,visibleResults.find(r=>r.id===selectedRoomId) || visibleResults[0]);
   const [dailyPricesData, setDailyPricesData] = useState(null);
   const [progressInfo, setProgressInfo] = useState(null);
   const [systemStatus, setSystemStatus] = useState({
@@ -78,6 +80,7 @@ export default function App() {
     if(searchContextKey(updated)!==searchContextKey(previous)) {
       searchGeneration.current++;
       setResults([]);setSummary(null);setDailyPricesData(null);setSelectedRoomId(null);
+      setShowAlternatives(false);
       setSearchState('idle');setProgressInfo(null);setErrorMessage('');setRetryDayError('');
     }
   }, []);
@@ -112,6 +115,7 @@ export default function App() {
 
     setFormData((prev) => ({ ...prev, ...params }));
     setSearchState('loading');
+    setShowAlternatives(false);
     setErrorMessage('');
     setProgressInfo({ completed: 0, total: calculatedNights || 1, percent: 0, currentDay: checkIn });
     setDailyPricesData(null);
@@ -304,7 +308,9 @@ export default function App() {
               />
 
               <SearchResultsTable
-                results={results}
+                results={visibleResults}
+                showAlternatives={showAlternatives}
+                onToggleAlternatives={()=>setShowAlternatives(value=>!value)}
                 summary={selectedSummary}
                 searchParams={summary?.searchParams || formData}
                 selectedRoomId={selectedRoomId}

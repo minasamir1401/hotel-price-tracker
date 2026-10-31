@@ -139,6 +139,44 @@ export function catalogFields(results,rateTier='both') {
   return rateFields(summary,rateTier);
 }
 
+// Build the visible rates without changing the source results, so alternatives
+// can be switched on and off without another search.
+export function roomWithAlternatives(room,showAlternatives=false) {
+  const fields=mealPlans.flatMap(([plan])=>[plan,`${plan}Flexible`]);
+  const title=field=>field[0].toUpperCase()+field.slice(1);
+  if(!room.dailyRates?.some(day=>day.isAlternative || fields.some(field=>day[`${field}IsAlternative`] || day[`alternative${title(field)}Price`]!=null)))return room;
+  const dailyRates=room.dailyRates.map(day=>{
+    const visible={...day,offers:{}};
+    let hasDirect=false,hasAlternative=false;
+    for(const field of fields) {
+      const direct=day[`${field}IsAlternative`] ? null : day[`${field}Price`] ?? null;
+      const alternative=day[`alternative${title(field)}Price`] ?? (day[`${field}IsAlternative`]?day[`${field}Price`]:null) ?? null;
+      const useAlternative=showAlternatives && direct==null && alternative!=null && day.availability!=='error';
+      visible[`${field}Price`]=day.availability==='error'?null:direct ?? (useAlternative?alternative:null);
+      visible[`alternative${title(field)}Price`]=useAlternative?alternative:null;
+      visible[`${field}IsAlternative`]=useAlternative;
+      const offer=useAlternative ? day.alternativeOffers?.[field] ?? day.offers?.[field] : direct!=null ? day.offers?.[field] : null;
+      if(offer && day.availability!=='error')visible.offers[field]=offer;
+      hasDirect ||= direct!=null;
+      hasAlternative ||= useAlternative;
+    }
+    visible.isAlternative=hasAlternative;
+    visible.alternativeRoomName=hasAlternative?day.alternativeRoomName:null;
+    visible.availability=day.availability==='error'?'error':hasDirect?'available':hasAlternative?'available_alternative':'unavailable';
+    if(!hasDirect && !hasAlternative)visible.cancellationPolicy='غير متاح';
+    return visible;
+  });
+  const visible={...room,dailyRates};
+  for(const field of fields) {
+    const prices=dailyRates.map(day=>day[`${field}Price`]);
+    const total=completeSum(prices.map(price=>price==null?null:price*(room.rooms || 1)));
+    visible[`${field}AvailableNights`]=prices.filter(price=>price!=null).length;
+    visible[`${field}TotalPrice`]=total;
+    visible[`${field}PricePerNight`]=total==null?null:Math.round(total/(room.rooms || 1)/dailyRates.length*100)/100;
+  }
+  return visible;
+}
+
 export function summaryForRoom(summary,room) {
   if(!summary || !room) return summary;
   const fields=mealPlans.flatMap(([plan])=>[plan,`${plan}Flexible`]);

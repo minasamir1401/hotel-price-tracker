@@ -2,7 +2,7 @@ import {useState} from 'react';
 import ExportExcelButton from './ExportExcelButton';
 import LiveDailyRateBreakdown from './DailyRateBreakdown';
 import {summaryForRoom,catalogFields} from '../services/rates';
-export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,retryingDate,retryDayError}) {
+export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,retryingDate,retryDayError,showAlternatives=false,onToggleAlternatives}) {
   const [rateTier,setRateTier]=useState('both');
   const [allRooms,setAllRooms]=useState(false);
   if(!results?.length) return null;
@@ -31,6 +31,13 @@ export default function LiveSearchResultsTable({results,summary,searchParams,onE
       </select>
     </div>
     <div className="flex flex-wrap justify-between items-center gap-3 mb-4"><div className="flex gap-2">{[['both','كل العروض'],['flexible','إلغاء مجاني']].map(([value,label])=><button type="button" key={value} disabled={value==='flexible'&&!hasFree} onClick={()=>setRateTier(value)} className={`px-4 py-2 rounded-xl text-xs font-bold border disabled:opacity-40 ${activeTier===value?'bg-blue-600 text-white border-blue-600':'bg-white text-slate-700 border-slate-200'}`}>{label}</button>)}</div><ExportExcelButton results={results} summary={summary} searchParams={searchParams} rateTier={activeTier} onExport={onExport}/></div>
+    <div className="flex flex-wrap items-center gap-3 mb-4">
+      <button type="button" aria-pressed={showAlternatives} onClick={onToggleAlternatives}
+        className={`px-4 py-2 rounded-xl text-sm font-bold border ${showAlternatives?'bg-amber-100 text-amber-900 border-amber-300':'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
+        {showAlternatives?'إيقاف عرض البدائل':'تفعيل عرض البدائل'}
+      </button>
+      <p className="text-xs text-slate-600">{showAlternatives?'تظهر بدائل الغرف المتاحة لليالي التي لا تتوفر فيها الغرفة المختارة، مع توضيح اسم البديل.':'عرض البدائل اختياري. الأسعار المعروضة تخص الغرفة المختارة فقط.'}</p>
+    </div>
     {retryDayError && <p role="alert" className="mb-3 text-sm text-red-700 bg-red-50 rounded-xl p-3">{retryDayError}</p>}
     <label className="flex items-center gap-2 mb-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={allRooms} onChange={e=>setAllRooms(e.target.checked)}/>عرض جدول يومي مستقل لكل الغرف ({results.length})</label>
     {(allRooms ? results : results.filter(r=>r.id===(selectedRoomId || results[0].id))).map(room=>{
