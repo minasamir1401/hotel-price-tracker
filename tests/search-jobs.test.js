@@ -8,7 +8,8 @@ const month={hotelInput:'hotel',checkIn:'2026-10-20',checkOut:'2026-11-19',sourc
 
 test('The frontend submits one month job and follows its progress and complete source result',async()=>{
   const saved=globalThis.fetch,requests=[],progress=[];
-  const result={success:true,data:[{roomName:'Twin',dailyRates:Array.from({length:30},(_,i)=>({day:i+1}))}]};
+  const dailyRates=Array.from({length:30},(_,i)=>({day:i+1,date:new Date(Date.parse(month.checkIn)+i*86400000).toISOString().slice(0,10)}));
+  const result={success:true,data:[{id:'twin',roomName:'Twin',source:'Almosafer',dailyRates}],summary:{dailyBreakdown:dailyRates.map(({date})=>({date}))}};
   let polls=0;
   try{
     globalThis.fetch=async(url,options)=>{

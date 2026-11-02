@@ -8,8 +8,17 @@ function searchTimeout(searchData) {
     (Math.ceil(nights / 2) + 2 * nights) * 90000;
 }
 export async function startHotelPriceSearch(searchData, onProgress) {
-  return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'search-hotel-prices',
+  const result = await runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'search-hotel-prices',
     payload: { ...searchData, bookingRateMode: 'guest', refresh: true }, onProgress, timeoutMs: searchTimeout(searchData) });
+  // Reject incomplete successful replies before the room picker and summaries render them.
+  if (result.success && (!Array.isArray(result.data) || result.data.some(room =>
+    !room || typeof room.id !== 'string' || !room.id || typeof room.roomName !== 'string' || typeof room.source !== 'string' ||
+    !Array.isArray(room.dailyRates) || !room.dailyRates.length || room.dailyRates.some(day => !day || typeof day.date !== 'string')) ||
+    (result.data.length > 0 && (!Array.isArray(result.summary?.dailyBreakdown) || !result.summary.dailyBreakdown.length ||
+      result.summary.dailyBreakdown.some(day => !day || typeof day.date !== 'string'))))) {
+    return { success: false, code: 'INVALID_SEARCH_RESULT', message: 'وصلت بيانات أسعار غير مكتملة من الخادم. يرجى إعادة المحاولة.' };
+  }
+  return result;
 }
 export async function startDailyPricesSearch(searchData, onProgress, maxAttempts = 2) {
   return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'daily-prices',
@@ -83,7 +92,7 @@ export const getBookingPriceAccess = () => bookingPriceAccess('GET');
 
 export async function fetchHotelRoomsList(searchData, { signal, onProgress } = {}) {
   const startupTimeout = searchData.source === 'almosafer' || /almosafer\.com/i.test(searchData.hotelInput || '') ? 180000 : 60000;
-  return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, onProgress, timeoutMs: Math.max(startupTimeout, searchTimeout(searchData)),
+  const result = await runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'hotel-rooms-list', signal, onProgress, timeoutMs: Math.max(startupTimeout, searchTimeout(searchData)),
     payload: {
       hotelInput: searchData.hotelInput, checkIn: searchData.checkIn, checkOut: searchData.checkOut,
       adults: searchData.adults ?? 2, rooms: searchData.rooms ?? 1, source: searchData.source,
@@ -92,4 +101,12 @@ export async function fetchHotelRoomsList(searchData, { signal, onProgress } = {
       bookingRateMode: 'guest',
     },
   });
+  if (result.success && (!Array.isArray(result.rooms) || result.rooms.some(room => typeof room !== 'string') ||
+    (result.roomAvailability != null && (!Array.isArray(result.roomAvailability) || result.roomAvailability.some(room =>
+      !room || typeof room.name !== 'string' || !Array.isArray(room.availableDates) || room.availableDates.some(date => typeof date !== 'string') ||
+      !Number.isInteger(room.availableNights) || !Number.isInteger(room.totalNights)))) ||
+    (result.warnings != null && (!Array.isArray(result.warnings) || result.warnings.some(warning => !warning || typeof warning.message !== 'string'))))) {
+    return { success: false, code: 'INVALID_ROOM_RESULT', message: 'وصلت بيانات غرف غير مكتملة من الخادم. يرجى تحديث الغرف أو إعادة المحاولة.' };
+  }
+  return result;
 }

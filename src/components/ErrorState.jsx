@@ -5,7 +5,7 @@ export default function ErrorState({ type = 'error', message, onRetry }) {
   const isNoResults = type === 'no-results';
 
   return (
-    <div className="bg-white/80 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-xl shadow-slate-950/5 p-10 text-center">
+    <div role="alert" className="bg-white/80 backdrop-blur-2xl rounded-3xl border border-white/60 shadow-xl shadow-slate-950/5 p-10 text-center">
       <div
         className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-md border shadow-2xs ${
           isNoResults

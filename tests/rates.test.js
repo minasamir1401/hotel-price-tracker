@@ -245,6 +245,59 @@ test('Empty and unavailable backend responses never generate example prices',asy
   } finally {globalThis.fetch=saved;}
 });
 
+test('Incomplete successful price replies are rejected before rendering instead of inventing nightly prices',async()=>{
+  const saved=globalThis.fetch,room=elafTwinRoom();
+  const valid={success:true,data:[room],summary:{dailyBreakdown:room.dailyRates.map(({date})=>({date}))}};
+  const {result:legacy}=JSON.parse(await readFile(new URL('./fixtures/kingsgate-month.json',import.meta.url),'utf8'));
+  try {
+    for(const result of [
+      {success:true,...legacy},
+      {...valid,data:{}},
+      {...valid,data:[null]},
+      {...valid,data:[{...room,id:undefined}]},
+      {...valid,data:[{...room,dailyRates:undefined}]},
+      {...valid,data:[{...room,dailyRates:{}}]},
+      {...valid,data:[{...room,dailyRates:[null]}]},
+      {...valid,summary:{}},
+      {...valid,summary:{dailyBreakdown:[null]}},
+    ]) {
+      globalThis.fetch=async()=>Response.json(result);
+      const response=await startHotelPriceSearch({});
+      assert.equal(response.success,false);
+      assert.equal(response.code,'INVALID_SEARCH_RESULT');
+      assert.match(response.message,/غير مكتملة/);
+      assert.equal(response.data,undefined);
+    }
+    globalThis.fetch=async()=>Response.json(valid);
+    assert.deepEqual(await startHotelPriceSearch({}),valid);
+  } finally {globalThis.fetch=saved;}
+});
+
+test('Malformed room names and availability dates produce recoverable errors, while optional metadata stays optional',async()=>{
+  const saved=globalThis.fetch;
+  const valid={success:true,rooms:['Twin'],roomAvailability:[{name:'Twin',availableDates:['2027-02-01'],availableNights:1,totalNights:2}]};
+  try {
+    for(const result of [
+      {...valid,rooms:[{}]},
+      {...valid,roomAvailability:{}},
+      {...valid,roomAvailability:[null]},
+      {...valid,roomAvailability:[{name:'Twin',availableNights:1,totalNights:2}]},
+      {...valid,roomAvailability:[{...valid.roomAvailability[0],availableDates:'2027-02-01'}]},
+      {...valid,warnings:[null]},
+    ]) {
+      globalThis.fetch=async()=>Response.json(result);
+      const response=await fetchHotelRoomsList({});
+      assert.equal(response.success,false);
+      assert.equal(response.code,'INVALID_ROOM_RESULT');
+      assert.match(response.message,/غير مكتملة/);
+    }
+    for(const result of [valid,{success:true,rooms:['Twin']}]) {
+      globalThis.fetch=async()=>Response.json(result);
+      assert.deepEqual(await fetchHotelRoomsList({}),result);
+    }
+  } finally {globalThis.fetch=saved;}
+});
+
 test('Room-list errors retain diagnostic references and requests include exact occupancy and refresh',async()=>{
   const saved=globalThis.fetch;
   try {
