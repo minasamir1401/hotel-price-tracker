@@ -199,6 +199,26 @@ test('Changing the room request aborts polling and does not submit a cancelled r
   } finally { globalThis.fetch = saved; }
 });
 
+test('Bulk and single-night retries keep the original month and forward its snapshot and selected room',async()=>{
+  const saved=globalThis.fetch;
+  try {
+    const inputs=[];
+    globalThis.fetch=async(_url,options)=>{
+      inputs.push(JSON.parse(options.body));
+      return Response.json({success:true,data:[],retryInventoryId:'updated-snapshot'});
+    };
+    for(const retryDates of [undefined,['2026-10-21']]){
+      const response=await startHotelPriceSearch({...month,retryInventoryId:'monthly-snapshot',retryRoomIdentity:'classic',retryDates});
+      assert.equal(response.retryInventoryId,'updated-snapshot');
+    }
+    for(const body of inputs){
+      assert.equal(body.retryInventoryId,'monthly-snapshot');assert.equal(body.retryRoomIdentity,'classic');
+      assert.equal(body.checkIn,month.checkIn);assert.equal(body.checkOut,month.checkOut);assert.equal(body.refresh,true);
+    }
+    assert.deepEqual(inputs[1].retryDates,['2026-10-21']);
+  } finally {globalThis.fetch=saved;}
+});
+
 test('A new search click has a new request ID; retrying the same submission keeps its original ID', async () => {
   const saved = globalThis.fetch, ids = [];
   try {

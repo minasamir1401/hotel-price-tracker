@@ -3,7 +3,9 @@ import { runPriceSearch } from './searchTransport.js';
 const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) || '/api';
 function searchTimeout(searchData) {
   const nights = Math.max(1, Math.min(62, Math.ceil((Date.parse(searchData.checkOut) - Date.parse(searchData.checkIn)) / 86400000) || 31));
-  return 60000 + Math.ceil(nights / 4) * 90000 + Math.ceil(nights / 2) * 45000;
+  // Budget for the initial scan and three progressively smaller repair rounds.
+  return 60000 + Math.ceil(nights / 4) * 90000 +
+    (Math.ceil(nights / 2) + 2 * nights) * 90000;
 }
 export async function startHotelPriceSearch(searchData, onProgress) {
   return runPriceSearch({ apiBase: API_BASE_URL, endpoint: 'search-hotel-prices',

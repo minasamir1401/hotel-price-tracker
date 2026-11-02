@@ -54,7 +54,7 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
               <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-blue-600 text-white font-mono text-xs">
                 {completed} / {total}
               </span>
-              <span>{repairing ? 'إعادة التحقق من الليالي غير المؤكدة' : `تم فحص ${completed} من ${total} ليلة`}</span>
+              <span>{repairing ? `إعادة التحقق من الليالي غير المؤكدة — محاولة ${progress.repairRound || 1}` : `تم فحص ${completed} من ${total} ليلة`}</span>
             </div>
             <span className="font-mono text-base font-extrabold text-blue-700">
               {percent}%
@@ -72,7 +72,7 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
             {progress.currentDay ? (
               <span>جاري استخراج ليلة: <strong className="font-mono text-slate-900">{progress.currentDay}</strong></span>
             ) : <span>جاري استخراج البيانات...</span>}
-            <span>المتبقي: {Math.max(0, progress.total - progress.completed)} يوم</span>
+            <span>المتبقي: {Math.max(0, total - completed)} ليلة</span>
           </div>
         </div>
       )}

@@ -2,23 +2,32 @@ import {useState} from 'react';
 import ExportExcelButton from './ExportExcelButton';
 import LiveDailyRateBreakdown from './DailyRateBreakdown';
 import {summaryForRoom,catalogFields} from '../services/rates';
-export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,retryingDate,retryDayError,showAlternatives=false,onToggleAlternatives}) {
+export default function LiveSearchResultsTable({results,summary,searchParams,onExport,selectedRoomId,onRoomSelect,onRetryDay,onRefreshAll,onRetryMissing,retryMissingProgress,retryingDate,retryDayError,showAlternatives=false,onToggleAlternatives}) {
   const [rateTier,setRateTier]=useState('both');
   const [allRooms,setAllRooms]=useState(false);
   if(!results?.length) return null;
   const hasFree=catalogFields(results,'flexible').length>0;
   const activeTier=rateTier==='flexible'&&!hasFree?'both':rateTier;
+  const selected=results.find(r=>r.id===selectedRoomId)||results[0];
+  const missingNights=selected.dailyRates.filter(day=>day.availability!=='available').length;
   return <div>
     <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl p-3 mb-4 border border-slate-200 text-sm">
       <span>وقت آخر استعلام: {summary?.searchedAt} • {summary?.hotelName}</span>
-      {onRefreshAll && <button type="button" onClick={onRefreshAll} className="text-blue-700 font-bold underline">تحديث كل الأسعار من المصدر</button>}
+      {onRefreshAll && <button type="button" disabled={Boolean(retryingDate)} onClick={onRefreshAll} className="text-blue-700 font-bold underline disabled:opacity-50">تحديث كل الأسعار من المصدر</button>}
     </div>
+    {onRetryMissing && selected.source==='Almosafer' && missingNights>0 && <div className="bg-amber-50 rounded-xl p-4 mb-4 border border-amber-200 text-sm">
+      <button type="button" disabled={Boolean(retryingDate)} onClick={()=>onRetryMissing()} className="text-blue-700 font-bold underline disabled:opacity-50">
+        {retryingDate==='all'?'جاري إعادة التحقق…':`إعادة التحقق من كل الليالي الناقصة (${missingNights})`}
+      </button>
+      <p className="mt-2 text-slate-700">يعيد فحص الليالي المتعذر التحقق منها والليالي التي لم تتوفر فيها الغرفة المختارة، مع الاحتفاظ بالأسعار الناجحة لباقي الليالي.</p>
+      {retryMissingProgress && <p role="status" className="mt-2 text-blue-800">المحاولة {retryMissingProgress.repairRound || 1}: تم فحص {retryMissingProgress.repairCompleted || 0} من {retryMissingProgress.repairTotal || missingNights} ليلة • متعذر التحقق: {retryMissingProgress.unverifiedNights || 0}</p>}
+    </div>}
     <div className="bg-white/90 rounded-2xl p-4 mb-4 border border-slate-200">
       <div className="flex flex-wrap justify-between items-center mb-2">
         <label htmlFor="selected-room" className="font-bold text-slate-800">الغرفة المطلوب عرض جدول أسعارها اليومية وتصديرها</label>
         <span className="text-xs text-slate-500 font-medium">تظهر الغرفة المحددة في البحث تلقائيًا عند توفرها</span>
       </div>
-      <select id="selected-room" value={selectedRoomId || results[0].id} onChange={e=>onRoomSelect?.(e.target.value)} className="w-full border border-slate-300 rounded-xl p-3 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 outline-none">
+      <select id="selected-room" disabled={Boolean(retryingDate)} value={selectedRoomId || results[0].id} onChange={e=>onRoomSelect?.(e.target.value)} className="w-full border border-slate-300 rounded-xl p-3 bg-white text-slate-800 font-medium focus:ring-2 focus:ring-blue-500 outline-none">
         {results.map(r=>{
           const directCount = Math.max(0,...['roomOnly','breakfast','halfBoard'].flatMap(plan=>[r[`${plan}DirectAvailableNights`] ?? r[`${plan}AvailableNights`] ?? 0,r[`${plan}FlexibleDirectAvailableNights`] ?? r[`${plan}FlexibleAvailableNights`] ?? 0]));
           const isFull = directCount === r.nights;

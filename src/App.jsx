@@ -49,6 +49,7 @@ export default function App() {
   const [showAlternatives,setShowAlternatives] = useState(false);
   const [retryingDate,setRetryingDate] = useState(null);
   const [retryDayError,setRetryDayError] = useState('');
+  const [retryMissingProgress,setRetryMissingProgress] = useState(null);
   const visibleResults = results.map(room=>roomWithAlternatives(room,showAlternatives));
   const selectedSummary = summaryForRoom(summary,visibleResults.find(r=>r.id===selectedRoomId) || visibleResults[0]);
   const [dailyPricesData, setDailyPricesData] = useState(null);
@@ -82,10 +83,18 @@ export default function App() {
       setResults([]);setSummary(null);setDailyPricesData(null);setSelectedRoomId(null);
       setShowAlternatives(false);
       setSearchState('idle');setProgressInfo(null);setErrorMessage('');setRetryDayError('');
+      setRetryingDate(null);setRetryMissingProgress(null);
     }
   }, []);
 
-  const handleSearch = async (submittedParams) => {
+  const handleSearch = async (submittedParams, { refreshAll = false } = {}) => {
+    const currentRoom=results.find(r=>r.id===selectedRoomId)||results[0];
+    if(!refreshAll && searchState==='success' && summary?.retryInventoryId && currentRoom?.source==='Almosafer' &&
+      searchContextKey(submittedParams)===searchContextKey(summary.searchParams) &&
+      currentRoom.dailyRates.some(day=>day.availability!=='available')) {
+      await handleRetryMissing();
+      return;
+    }
     const generation = ++searchGeneration.current;
     const hotelInput = submittedParams?.hotelInput?.trim();
     if (!hotelInput) {
@@ -122,6 +131,7 @@ export default function App() {
     setResults([]);
     setSummary(null);
     setRetryDayError('');
+    setRetryingDate(null);setRetryMissingProgress(null);
 
     try {
       const isAlmatarUrl = params.hotelInput && params.hotelInput.includes('almatar.com');
@@ -168,7 +178,7 @@ export default function App() {
           setSummary(null);
         } else {
           setResults(response.data);
-          setSummary({ ...response.summary, searchParams: params });
+          setSummary({ ...response.summary, retryInventoryId: response.retryInventoryId, searchParams: params });
           setSelectedRoomId(roomForSearch(response.data,params,response.summary).id);
           setSearchState('success');
           setSystemStatus((prev) => ({
@@ -203,10 +213,13 @@ export default function App() {
     const room=results.find(r=>r.id===selectedRoomId)||results[0];
     const day=room?.dailyRates.find(d=>d.date===date);
     if(!day || retryingDate) return;
+    if(room.source==='Almosafer' && summary?.retryInventoryId){await handleRetryMissing([date]);return;}
+    const generation = searchGeneration.current;
     setRetryingDate(date);setRetryDayError('');
     try {
       const response=await startHotelPriceSearch({...summary.searchParams,
-        checkIn:date,checkOut:day.nextDate,sources:[room.source.toLowerCase()]});
+        checkIn:date,checkOut:day.nextDate,sources:[room.source.toLowerCase()],roomInventoryId:undefined});
+      if(generation!==searchGeneration.current)return;
       if(!response.success) throw new Error(response.message || 'تعذر إعادة التحقق من هذا اليوم');
       const quote=response.data?.find(r=>r.roomIdentity===room.roomIdentity&&r.source===room.source);
       if(!quote) throw new Error(`لم يرجع المصدر عرضًا مطابقًا لهذه الغرفة يوم ${date}`);
@@ -214,8 +227,34 @@ export default function App() {
       setResults(current=>current.map(r=>r===room?updated:r));
       setSummary(current=>current?.checkIn===room.checkIn&&current.checkOut===room.checkOut&&current.hotelName===room.hotelName
         ? {...current,warnings:(current.warnings||[]).filter(w=>!w.startsWith(`${date}:`)),searchedAt:quote.lastUpdated} : current);
-    } catch(error) { setRetryDayError(`${date}: ${error.message}`); }
-    finally { setRetryingDate(null); }
+    } catch(error) { if(generation===searchGeneration.current)setRetryDayError(`${date}: ${error.message}`); }
+    finally { if(generation===searchGeneration.current)setRetryingDate(null); }
+  };
+
+  const handleRetryMissing = async (retryDates) => {
+    const room=results.find(r=>r.id===selectedRoomId)||results[0];
+    if(retryingDate || room?.source!=='Almosafer' || !summary?.retryInventoryId)return;
+    const generation=searchGeneration.current;
+    setRetryingDate(retryDates?.[0] || 'all');setRetryDayError('');setRetryMissingProgress(null);
+    try {
+      const response=await startHotelPriceSearch({...summary.searchParams,
+        sources:['almosafer'],roomInventoryId:undefined,retryInventoryId:summary.retryInventoryId,
+        retryRoomIdentity:room.roomIdentity,retryDates,roomName:room.roomName}, progress=>{
+        if(generation===searchGeneration.current)setRetryMissingProgress(progress);
+      });
+      if(generation!==searchGeneration.current)return;
+      if(!response.success)throw new Error(response.message || 'تعذر إعادة التحقق من الليالي الناقصة');
+      const updated=response.data?.find(r=>r.source===room.source && r.roomIdentity===room.roomIdentity)
+        || roomForSearch(response.data,{roomName:room.roomName},response.summary);
+      if(!updated)throw new Error('لم يرجع المصدر غرفًا متاحة؛ حدّث كل الأسعار لإعادة البحث');
+      setResults(current=>[...current.filter(r=>r.source!=='Almosafer'),...response.data]);
+      setSelectedRoomId(updated.id);
+      setSummary(current=>({...response.summary,searchParams:current.searchParams,retryInventoryId:response.retryInventoryId}));
+    } catch(error) {
+      if(generation===searchGeneration.current)setRetryDayError(error.message);
+    } finally {
+      if(generation===searchGeneration.current){setRetryingDate(null);setRetryMissingProgress(null);refreshStatus();}
+    }
   };
 
   const handleQuickDuration = (days) => {
@@ -317,9 +356,11 @@ export default function App() {
                 onRoomSelect={setSelectedRoomId}
                 onQuickDuration={handleQuickDuration}
                 onRetryDay={handleRetryDay}
-                onRefreshAll={()=>handleSearch({...summary.searchParams,roomInventoryId:undefined,refresh:true})}
+                onRefreshAll={()=>handleSearch({...summary.searchParams,roomInventoryId:undefined,refresh:true},{refreshAll:true})}
                 retryingDate={retryingDate}
                 retryDayError={retryDayError}
+                onRetryMissing={summary.retryInventoryId?handleRetryMissing:undefined}
+                retryMissingProgress={retryMissingProgress}
               />
             </>
           )}
