@@ -7,8 +7,7 @@ import SystemStatusPanel from './components/SystemStatusPanel';
 import LoadingState from './components/LoadingState';
 import EmptyState from './components/EmptyState';
 import ErrorState from './components/ErrorState';
-import DailyPricesView from './components/DailyPricesView';
-import { startHotelPriceSearch, getSystemStatus, startDailyPricesSearch } from './services/api';
+import { startHotelPriceSearch, getSystemStatus } from './services/api';
 import { summaryForRoom, replaceVerifiedNight, searchContextKey, roomForSearch, roomWithAlternatives } from './services/rates';
 
 export default function App() {
@@ -31,7 +30,7 @@ export default function App() {
     bedCount: 0,
     bedType: 'any',
     includeUnknownBeds: false,
-    sources: ['booking', 'nusuk'].includes(new URLSearchParams(window.location.search).get('source')) ? [new URLSearchParams(window.location.search).get('source')] : ['almosafer', 'almatar'],
+    sources: ['almosafer', 'almatar', 'booking', 'nusuk'].includes(new URLSearchParams(window.location.search).get('source')) ? [new URLSearchParams(window.location.search).get('source')] : ['almosafer', 'almatar'],
     roomName: '',
     roomKeywords: [],
     mealPlan: '',
@@ -52,7 +51,6 @@ export default function App() {
   const [retryMissingProgress,setRetryMissingProgress] = useState(null);
   const visibleResults = results.map(room=>roomWithAlternatives(room,showAlternatives));
   const selectedSummary = summaryForRoom(summary,visibleResults.find(r=>r.id===selectedRoomId) || visibleResults[0]);
-  const [dailyPricesData, setDailyPricesData] = useState(null);
   const [progressInfo, setProgressInfo] = useState(null);
   const [systemStatus, setSystemStatus] = useState({
     almosafer: 'unchecked',
@@ -80,7 +78,7 @@ export default function App() {
     setFormData(updated);
     if(searchContextKey(updated)!==searchContextKey(previous)) {
       searchGeneration.current++;
-      setResults([]);setSummary(null);setDailyPricesData(null);setSelectedRoomId(null);
+      setResults([]);setSummary(null);setSelectedRoomId(null);
       setShowAlternatives(false);
       setSearchState('idle');setProgressInfo(null);setErrorMessage('');setRetryDayError('');
       setRetryingDate(null);setRetryMissingProgress(null);
@@ -127,42 +125,13 @@ export default function App() {
     setShowAlternatives(false);
     setErrorMessage('');
     setProgressInfo({ completed: 0, total: calculatedNights || 1, percent: 0, currentDay: checkIn });
-    setDailyPricesData(null);
     setResults([]);
     setSummary(null);
     setRetryDayError('');
     setRetryingDate(null);setRetryMissingProgress(null);
 
     try {
-      const isAlmatarUrl = params.hotelInput && params.hotelInput.includes('almatar.com');
-      const isAlmosaferUrl = params.hotelInput && params.hotelInput.includes('almosafer.com');
-      const isBooking = params.sources.includes('booking') || /^booking:/i.test(params.hotelInput) || params.hotelInput.includes('booking.com');
-
-      if (!isBooking && !params.sources.includes('nusuk') && (isAlmatarUrl || (params.sources.includes('almatar') && !isAlmosaferUrl && (params.roomKeywords && params.roomKeywords.length > 0)))) {
-        // Run daily prices search if Almatar room is selected or direct Almatar URL is used
-        const dailyResult = await startDailyPricesSearch({
-          ...params,
-          concurrency: 4,
-        }, (prog) => {
-          if(generation===searchGeneration.current)setProgressInfo(prog);
-        });
-        if(generation!==searchGeneration.current)return;
-        
-        if (dailyResult.success) {
-          setDailyPricesData(dailyResult);
-          setSystemStatus(prev => ({ ...prev, lastSearch: new Date(dailyResult.fetchedAt).toLocaleTimeString('ar-SA') }));
-          setSearchState('success');
-          setProgressInfo(null);
-          return;
-        } else {
-          setSearchState('error');
-          setErrorMessage(dailyResult.message || 'فشل استخراج الأسعار اليومية');
-          setProgressInfo(null);
-          return;
-        }
-      }
-
-      // Query the live source for comparison
+      // All sources share the room picker, daily table, retries and Excel export.
       const response = await startHotelPriceSearch(params, (prog) => {
         if(generation===searchGeneration.current)setProgressInfo(prog);
       });
@@ -170,10 +139,8 @@ export default function App() {
 
       if (response.success) {
         if (!response.data || response.data.length === 0) {
-          if (!dailyPricesData) {
-            setSearchState('no-results');
-            setErrorMessage(response.warnings?.join(' • ') || '');
-          }
+          setSearchState('no-results');
+          setErrorMessage(response.warnings?.join(' • ') || '');
           setResults([]);
           setSummary(null);
         } else {
@@ -190,10 +157,8 @@ export default function App() {
           }));
         }
       } else {
-        if (!dailyPricesData) {
-          setSearchState('error');
-          setErrorMessage(response.message || 'فشل جلب نتائج الفنادق');
-        }
+        setSearchState('error');
+        setErrorMessage(response.message || 'فشل جلب نتائج الفنادق');
       }
     } catch (err) {
       if(generation!==searchGeneration.current)return;
@@ -308,11 +273,6 @@ export default function App() {
           />
         </section>
 
-        {/* Daily Prices Section */}
-        {dailyPricesData && (
-          <DailyPricesView data={dailyPricesData} searchParams={summary?.searchParams || formData} />
-        )}
-
         {/* Comparison and search status */}
 
         {/* Dynamic Display Area */}
@@ -359,7 +319,7 @@ export default function App() {
                 onRefreshAll={()=>handleSearch({...summary.searchParams,roomInventoryId:undefined,refresh:true},{refreshAll:true})}
                 retryingDate={retryingDate}
                 retryDayError={retryDayError}
-                onRetryMissing={summary.retryInventoryId?handleRetryMissing:undefined}
+                onRetryMissing={summary?.retryInventoryId?handleRetryMissing:undefined}
                 retryMissingProgress={retryMissingProgress}
               />
             </>

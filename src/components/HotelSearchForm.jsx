@@ -294,7 +294,7 @@ export default function HotelSearchForm({
     rooms: formData.rooms,
     children: formData.children,
     childAges: formData.childAges || [],
-    sources: formData.sources?.length === 1 ? formData.sources : [],
+    sources: [...(formData.sources || [])].sort(),
     bookingRateMode: 'guest',
   });
   const roomQuery = useMemo(() => JSON.parse(roomQueryKey), [roomQueryKey]);
@@ -338,6 +338,14 @@ export default function HotelSearchForm({
       ...formData,
       [field]: value,
     };
+
+    if (field === 'sources') {
+      // Room names and inventory references belong to the source that returned them.
+      updated.roomName = ''; updated.roomKeywords = []; updated.mealPlan = '';
+      updated.roomInventoryId = undefined;
+      updated.resolvedHotelName = ''; updated.resolvedHotelInput = ''; updated.resolvedHotelId = '';
+      setAvailableRooms([]); setRoomAvailability([]); setRoomWarnings([]); setRoomsError('');
+    }
 
     if (field === 'hotelInput' && /^booking:/i.test(String(value).trim())) {
       updated.resolvedHotelName = ''; updated.resolvedHotelInput = '';
@@ -447,9 +455,6 @@ export default function HotelSearchForm({
     if (!input.startsWith('http://') && !input.startsWith('https://') && /^(?:www\.)?(?:booking|almosafer|almatar)\.com/i.test(input)) {
       input = 'https://' + input;
       targetSearch.hotelInput = input;
-    }
-    if (input.includes('booking.com') || /^booking:/i.test(input)) {
-      targetSearch.sources = ['booking'];
     }
     if (!targetSearch.checkIn) {
       targetSearch.checkIn = today;

@@ -22,7 +22,7 @@ export default function LoadingState({ selectedSources = [], progress = null }) 
     return elapsedSeconds >= step.minSec ? idx : curr;
   }, 0);
 
-  const sourcesText = selectedSources.map((s) => ({ almosafer: 'المسافر', almatar: 'المطار', booking: 'بوكينج' })[s] || s).join(' و ') || 'المصادر المحددة';
+  const sourcesText = selectedSources.map((s) => ({ almosafer: 'المسافر', almatar: 'المطار', booking: 'بوكينج', nusuk: 'نسك' })[s] || s).join(' و ') || 'المصادر المحددة';
   const repairing = progress?.phase === 'repairing';
   const completed = repairing ? progress.repairCompleted : progress?.completed;
   const total = repairing ? progress.repairTotal : progress?.total;
